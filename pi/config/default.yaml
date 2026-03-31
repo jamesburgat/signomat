@@ -53,6 +53,11 @@ api:
 sync:
   enabled: false
   batch_size: 25
+  base_url: null
+  ingest_token: null
+  device_id: signomat-pi
+  interval_seconds: 60.0
+  request_timeout_seconds: 15.0
 
 ble:
   enabled: false

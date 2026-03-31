@@ -273,5 +273,94 @@ class Database:
         summary["total"] = sum(summary.values())
         return summary
 
+    def pending_upload_items(self, limit: int = 100, item_types: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM upload_queue WHERE state='pending'"
+        params: list[Any] = []
+        if item_types:
+            placeholders = ", ".join(["?"] * len(item_types))
+            sql += f" AND item_type IN ({placeholders})"
+            params.extend(item_types)
+        sql += " ORDER BY created_at_utc ASC LIMIT ?"
+        params.append(limit)
+        return [dict(row) for row in self.query_all(sql, tuple(params))]
+
+    def mark_upload_items_state(
+        self,
+        queue_ids: list[str],
+        state: str,
+        *,
+        last_error: str | None = None,
+        next_attempt_utc: str | None = None,
+        increment_retry: bool = False,
+    ) -> None:
+        if not queue_ids:
+            return
+        placeholders = ", ".join(["?"] * len(queue_ids))
+        retry_expr = "retry_count + 1" if increment_retry else "retry_count"
+        params: list[Any] = [state, last_error, next_attempt_utc, utc_now_text(), *queue_ids]
+        self.execute(
+            f"""
+            UPDATE upload_queue
+            SET state=?,
+                last_error=?,
+                next_attempt_utc=?,
+                retry_count={retry_expr},
+                updated_at_utc=?
+            WHERE queue_id IN ({placeholders})
+            """,
+            tuple(params),
+        )
+
+    def mark_related_upload_state(self, table_name: str, ids: list[str], upload_state: str) -> None:
+        if not ids:
+            return
+        if table_name == "detections":
+            id_column = "event_id"
+        elif table_name == "video_segments":
+            id_column = "video_segment_id"
+        else:
+            return
+        placeholders = ", ".join(["?"] * len(ids))
+        self.execute(
+            f"UPDATE {table_name} SET upload_state=? WHERE {id_column} IN ({placeholders})",
+            (upload_state, *ids),
+        )
+
+    def trip_records(self, trip_ids: list[str]) -> list[dict[str, Any]]:
+        if not trip_ids:
+            return []
+        placeholders = ", ".join(["?"] * len(trip_ids))
+        return [dict(row) for row in self.query_all(f"SELECT * FROM trips WHERE trip_id IN ({placeholders})", tuple(trip_ids))]
+
+    def gps_points_for_trips(self, trip_ids: list[str]) -> list[dict[str, Any]]:
+        if not trip_ids:
+            return []
+        placeholders = ", ".join(["?"] * len(trip_ids))
+        return [
+            dict(row)
+            for row in self.query_all(
+                f"SELECT * FROM gps_points WHERE trip_id IN ({placeholders}) ORDER BY timestamp_utc ASC",
+                tuple(trip_ids),
+            )
+        ]
+
+    def video_segments_by_ids(self, segment_ids: list[str]) -> list[dict[str, Any]]:
+        if not segment_ids:
+            return []
+        placeholders = ", ".join(["?"] * len(segment_ids))
+        return [
+            dict(row)
+            for row in self.query_all(
+                f"SELECT * FROM video_segments WHERE video_segment_id IN ({placeholders})",
+                tuple(segment_ids),
+            )
+        ]
+
+    def detections_by_ids(self, event_ids: list[str]) -> list[dict[str, Any]]:
+        if not event_ids:
+            return []
+        placeholders = ", ".join(["?"] * len(event_ids))
+        return [dict(row) for row in self.query_all(f"SELECT * FROM detections WHERE event_id IN ({placeholders})", tuple(event_ids))]
+
     def recent_device_events(self, limit: int = 20) -> list[dict[str, Any]]:
         return [dict(row) for row in self.query_all("SELECT * FROM device_events ORDER BY timestamp_utc DESC LIMIT ?", (limit,))]

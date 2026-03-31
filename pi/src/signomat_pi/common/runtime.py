@@ -77,6 +77,7 @@ class SignomatRuntime:
         self.inference_service.start()
         if self.config.ble.enabled:
             self.ble_service.start()
+        self.sync_service.start()
         self._start_lcd_loop()
         self.lcd.show_ready("Runtime ready")
         self.database.add_device_event("runtime.start", "info", "runtime started")
@@ -90,6 +91,7 @@ class SignomatRuntime:
         self.capture_service.stop()
         if self.config.ble.enabled:
             self.ble_service.stop()
+        self.sync_service.stop()
         self.database.add_device_event("runtime.stop", "info", "runtime stopped")
         self.lcd.close()
         self.database.close()
@@ -107,6 +109,7 @@ class SignomatRuntime:
         self.detection_count_trip = 0
         self.last_detection = None
         self.database.create_trip(trip_id, True, self.inference_active)
+        self.database.enqueue_upload("trip_metadata", None, "trips", trip_id, {"trip_id": trip_id})
         self.capture_service.set_trip(trip_id)
         self.gps_service.set_trip(trip_id)
         self.capture_service.start_recording()
@@ -125,6 +128,7 @@ class SignomatRuntime:
         self.capture_service.set_trip(None)
         self.gps_service.set_trip(None)
         self.database.stop_trip(trip_id)
+        self.database.enqueue_upload("trip_metadata", None, "trips", trip_id, {"trip_id": trip_id})
         self.database.add_device_event("trip.stop", "info", "trip stopped", {"trip_id": trip_id})
         self.current_trip_id = None
         self.recording_active = False

@@ -81,6 +81,11 @@ class APISection(BaseModel):
 class SyncSection(BaseModel):
     enabled: bool = False
     batch_size: int = 25
+    base_url: str | None = None
+    ingest_token: str | None = None
+    device_id: str | None = None
+    interval_seconds: float = 60.0
+    request_timeout_seconds: float = 15.0
 
 
 class BLESection(BaseModel):
@@ -172,6 +177,7 @@ def env_overrides() -> dict[str, Any]:
     camera: dict[str, Any] = {}
     gps: dict[str, Any] = {}
     ble: dict[str, Any] = {}
+    sync: dict[str, Any] = {}
     app_mapping = {
         "base_data_dir": _env_text("SIGNOMAT_BASE_DATA_DIR"),
         "log_level": _env_text("SIGNOMAT_LOG_LEVEL"),
@@ -209,6 +215,17 @@ def env_overrides() -> dict[str, Any]:
     for key, value in ble_mapping.items():
         if value is not None:
             ble[key] = value
+    sync_mapping = {
+        "enabled": _env_bool("SIGNOMAT_SYNC_ENABLED"),
+        "base_url": _env_text("SIGNOMAT_SYNC_BASE_URL"),
+        "ingest_token": _env_text("SIGNOMAT_INGEST_TOKEN"),
+        "device_id": _env_text("SIGNOMAT_SYNC_DEVICE_ID"),
+        "interval_seconds": _env_float("SIGNOMAT_SYNC_INTERVAL_SECONDS"),
+        "request_timeout_seconds": _env_float("SIGNOMAT_SYNC_REQUEST_TIMEOUT_SECONDS"),
+    }
+    for key, value in sync_mapping.items():
+        if value is not None:
+            sync[key] = value
     overrides: dict[str, Any] = {}
     if app:
         overrides["app"] = app
@@ -218,6 +235,8 @@ def env_overrides() -> dict[str, Any]:
         overrides["gps"] = gps
     if ble:
         overrides["ble"] = ble
+    if sync:
+        overrides["sync"] = sync
     return overrides
 
 

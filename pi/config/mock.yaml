@@ -51,6 +51,11 @@ api:
 sync:
   enabled: false
   batch_size: 10
+  base_url: null
+  ingest_token: null
+  device_id: signomat-mock
+  interval_seconds: 15.0
+  request_timeout_seconds: 10.0
 
 ble:
   enabled: true
