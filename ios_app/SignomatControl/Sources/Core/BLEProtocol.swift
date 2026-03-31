@@ -47,11 +47,21 @@ struct DetectionSummaryPayload: Codable {
     var det: Int
     var last: String?
     var lastTS: String?
+    var cats: [String: Int]
 
     enum CodingKeys: String, CodingKey {
         case det
         case last
         case lastTS = "last_ts"
+        case cats
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        det = try container.decode(Int.self, forKey: .det)
+        last = try container.decodeIfPresent(String.self, forKey: .last)
+        lastTS = try container.decodeIfPresent(String.self, forKey: .lastTS)
+        cats = try container.decodeIfPresent([String: Int].self, forKey: .cats) ?? [:]
     }
 }
 
@@ -90,6 +100,7 @@ struct LiveStatus {
     var det = 0
     var last: String?
     var lastTS: String?
+    var signCategories: [String: Int] = [:]
     var queue = 0
     var gps = "idle"
     var gpsFix = false
@@ -123,6 +134,7 @@ struct LiveStatus {
         det = payload.det
         last = payload.last
         lastTS = payload.lastTS
+        signCategories = payload.cats
     }
 
     mutating func merge(_ payload: UploadSummaryPayload) {
@@ -163,8 +175,6 @@ enum SignomatCommand: String, CaseIterable, Identifiable {
     case stopTrip = "stop_trip"
     case startRecording = "start_recording"
     case stopRecording = "stop_recording"
-    case enableInference = "enable_inference"
-    case disableInference = "disable_inference"
     case saveDiagnosticSnapshot = "save_diagnostic_snapshot"
 
     var id: String { rawValue }
@@ -175,8 +185,6 @@ enum SignomatCommand: String, CaseIterable, Identifiable {
         case .stopTrip: return "Stop Trip"
         case .startRecording: return "Start Recording"
         case .stopRecording: return "Stop Recording"
-        case .enableInference: return "Enable Inference"
-        case .disableInference: return "Disable Inference"
         case .saveDiagnosticSnapshot: return "Save Diagnostic Snapshot"
         }
     }

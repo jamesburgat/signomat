@@ -288,6 +288,11 @@ class SignomatRuntime:
     def status_snapshot(self) -> dict:
         storage = self.storage.storage_status()
         sync = self.sync_service.status()
+        sign_categories = (
+            self.database.detection_category_counts_for_trip(self.current_trip_id)
+            if self.current_trip_id
+            else []
+        )
         return {
             "trip_active": self.current_trip_id is not None,
             "recording_active": self.recording_active,
@@ -296,6 +301,7 @@ class SignomatRuntime:
             "detection_count_trip": self.detection_count_trip,
             "last_detection_label": (self.last_detection["specific_label"] or self.last_detection["category_label"]) if self.last_detection else None,
             "last_detection_timestamp": self.last_detection["timestamp_utc"] if self.last_detection else None,
+            "trip_sign_categories": sign_categories,
             "storage": storage,
             "upload_queue_size": sync.get("total", 0),
             "sync_status": sync["last_result"],

@@ -267,6 +267,19 @@ class Database:
         row = self.query_one("SELECT COUNT(*) AS count FROM detections WHERE trip_id=?", (trip_id,))
         return int(row["count"]) if row else 0
 
+    def detection_category_counts_for_trip(self, trip_id: str) -> list[dict[str, Any]]:
+        rows = self.query_all(
+            """
+            SELECT category_label, COUNT(*) AS count, MAX(timestamp_utc) AS last_seen_at
+            FROM detections
+            WHERE trip_id=?
+            GROUP BY category_label
+            ORDER BY count DESC, category_label ASC
+            """,
+            (trip_id,),
+        )
+        return [dict(row) for row in rows]
+
     def upload_status(self) -> dict[str, int]:
         rows = self.query_all("SELECT state, COUNT(*) AS count FROM upload_queue GROUP BY state")
         summary = {row["state"]: row["count"] for row in rows}

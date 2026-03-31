@@ -10,6 +10,8 @@ struct ContentView: View {
         GridItem(.flexible()),
         GridItem(.flexible())
     ]
+    private let tripCommands: [SignomatCommand] = [.startTrip, .stopTrip, .saveDiagnosticSnapshot]
+    private let recordingCommands: [SignomatCommand] = [.startRecording, .stopRecording]
 
     var body: some View {
         NavigationStack {
@@ -17,15 +19,8 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     statusCard
                     mapCard
-                    LazyVGrid(columns: commandGrid, spacing: 12) {
-                        ForEach(SignomatCommand.allCases) { command in
-                            Button(command.title) {
-                                viewModel.manager.send(command)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!viewModel.manager.isConnected)
-                        }
-                    }
+                    categoryCard
+                    commandCard
                 }
                 .padding(20)
             }
@@ -65,8 +60,7 @@ struct ContentView: View {
             statusRow("Last Event", viewModel.manager.lastEvent)
             statusRow("Trip ID", status.tripID ?? "None")
             statusRow("Trip Active", status.trip ? "Yes" : "No")
-            statusRow("Recording", status.rec ? "Yes" : "No")
-            statusRow("Inference", status.inf ? "Enabled" : "Disabled")
+            recordingBadge(isRecording: status.rec)
             statusRow("Last Detection", status.last ?? "None")
             statusRow("Last Detection Time", status.lastTS ?? "None")
             statusRow("Detections This Trip", "\(status.det)")
@@ -90,6 +84,76 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.thinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var categoryCard: some View {
+        let categories = viewModel.manager.status.signCategories.sorted { lhs, rhs in
+            if lhs.value == rhs.value {
+                return lhs.key < rhs.key
+            }
+            return lhs.value > rhs.value
+        }
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Signs This Trip")
+                .font(.headline)
+            if categories.isEmpty {
+                Text("No sign categories logged yet for this trip.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(categories, id: \.key) { entry in
+                    HStack {
+                        Text(entry.key.replacingOccurrences(of: "_", with: " ").capitalized)
+                        Spacer()
+                        Text("\(entry.value)")
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var commandCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Trip Controls")
+                .font(.headline)
+            Text("Trips start recording automatically. Use the recording buttons only if you want to override that during an active trip.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            LazyVGrid(columns: commandGrid, spacing: 12) {
+                ForEach(tripCommands) { command in
+                    commandButton(command)
+                }
+            }
+
+            if viewModel.manager.status.trip {
+                Text("Recording Override")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                LazyVGrid(columns: commandGrid, spacing: 12) {
+                    ForEach(recordingCommands) { command in
+                        commandButton(command)
+                    }
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func commandButton(_ command: SignomatCommand) -> some View {
+        Button(command.title) {
+            viewModel.manager.send(command)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(!viewModel.manager.isConnected)
     }
 
     private var mapCard: some View {
@@ -144,6 +208,17 @@ struct ContentView: View {
             Text(value)
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.trailing)
+        }
+    }
+
+    private func recordingBadge(isRecording: Bool) -> some View {
+        HStack {
+            Text("Recording")
+                .foregroundStyle(.secondary)
+            Spacer()
+            Label(isRecording ? "Recording Now" : "Not Recording", systemImage: isRecording ? "record.circle.fill" : "pause.circle")
+                .fontWeight(.semibold)
+                .foregroundStyle(isRecording ? .red : .secondary)
         }
     }
 
