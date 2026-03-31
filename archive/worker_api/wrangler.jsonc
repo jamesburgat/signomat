@@ -10,7 +10,7 @@
     {
       "binding": "ARCHIVE_DB",
       "database_name": "signomat-archive",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_id": "9c4fa20d-390e-4cb3-9878-0d0e0a79578e"
     }
   ],
   "r2_buckets": [
@@ -24,6 +24,6 @@
     }
   ],
   "vars": {
-    "PUBLIC_BASE_URL": "https://signomat-api.REPLACE_WITH_SUBDOMAIN.workers.dev"
+    "PUBLIC_BASE_URL": "https://signomat-api.burgat-james.workers.dev"
   }
 }
