@@ -260,6 +260,19 @@ class Database:
     def recent_video_segments(self, limit: int = 20) -> list[dict[str, Any]]:
         return [dict(row) for row in self.query_all("SELECT * FROM video_segments ORDER BY start_timestamp_utc DESC LIMIT ?", (limit,))]
 
+    def video_segments_for_trip(self, trip_id: str) -> list[dict[str, Any]]:
+        return [
+            dict(row)
+            for row in self.query_all(
+                "SELECT * FROM video_segments WHERE trip_id=? ORDER BY start_timestamp_utc DESC",
+                (trip_id,),
+            )
+        ]
+
+    def video_segment_by_id(self, segment_id: str) -> dict[str, Any] | None:
+        row = self.query_one("SELECT * FROM video_segments WHERE video_segment_id=?", (segment_id,))
+        return dict(row) if row else None
+
     def recent_trips(self, limit: int = 20) -> list[dict[str, Any]]:
         return [dict(row) for row in self.query_all("SELECT * FROM trips ORDER BY started_at_utc DESC LIMIT ?", (limit,))]
 

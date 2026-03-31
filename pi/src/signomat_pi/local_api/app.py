@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 import cv2
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 
 
 def create_app(runtime) -> FastAPI:
@@ -40,6 +41,7 @@ def create_app(runtime) -> FastAPI:
             <h1>Signomat Local API</h1>
             <p><a href="/docs">Open API docs</a></p>
             <p><a href="/preview">Open live preview</a></p>
+            <p><a href="/recordings">Browse trip recordings</a></p>
           </body>
         </html>
         """
@@ -106,6 +108,94 @@ def create_app(runtime) -> FastAPI:
     @app.get("/video/recent")
     def video_recent(limit: int = 20):
         return runtime.database.recent_video_segments(limit)
+
+    @app.get("/recordings", response_class=HTMLResponse)
+    def recordings():
+        trips = runtime.database.recent_trips(100)
+        trip_sections: list[str] = []
+        for trip in trips:
+            trip_id = trip["trip_id"]
+            segments = runtime.database.video_segments_for_trip(trip_id)
+            if not segments:
+                continue
+            segment_links: list[str] = []
+            for segment in segments:
+                size_mb = (segment.get("file_size") or 0) / 1024 / 1024
+                segment_links.append(
+                    (
+                        "<li>"
+                        f"<a href=\"/recordings/{trip_id}\">{trip_id}</a> :: "
+                        f"<a href=\"/recordings/video/{segment['video_segment_id']}\">{segment['video_segment_id']}</a> "
+                        f"({size_mb:.1f} MB)"
+                        "</li>"
+                    )
+                )
+            trip_sections.append(
+                (
+                    "<section style=\"margin-bottom:24px;\">"
+                    f"<h2 style=\"margin:0 0 8px;\">{trip_id}</h2>"
+                    f"<div style=\"color:#666;margin-bottom:8px;\">Status: {trip.get('status')} | Started: {trip.get('started_at_utc')}</div>"
+                    "<ul style=\"margin:0;padding-left:20px;\">"
+                    + "".join(segment_links)
+                    + "</ul></section>"
+                )
+            )
+
+        body = "".join(trip_sections) or "<p>No trip recordings found yet.</p>"
+        return (
+            "<html><head><title>Signomat Recordings</title></head>"
+            "<body style=\"font-family:sans-serif;margin:24px;\">"
+            "<h1>Trip Recordings</h1>"
+            "<p><a href=\"/\">Back to local API</a></p>"
+            f"{body}</body></html>"
+        )
+
+    @app.get("/recordings/{trip_id}", response_class=HTMLResponse)
+    def recordings_trip(trip_id: str):
+        segments = runtime.database.video_segments_for_trip(trip_id)
+        if not segments:
+            raise HTTPException(status_code=404, detail="trip recordings not found")
+        trip = next((item for item in runtime.database.recent_trips(500) if item["trip_id"] == trip_id), None)
+        cards: list[str] = []
+        for segment in segments:
+            size_mb = (segment.get("file_size") or 0) / 1024 / 1024
+            duration = segment.get("duration_sec") or 0
+            cards.append(
+                (
+                    "<article style=\"margin-bottom:28px;padding:16px;border:1px solid #ddd;border-radius:12px;\">"
+                    f"<h3 style=\"margin-top:0;\">{segment['video_segment_id']}</h3>"
+                    f"<div style=\"margin-bottom:8px;color:#666;\">Start: {segment.get('start_timestamp_utc')} | "
+                    f"Duration: {duration:.1f}s | Size: {size_mb:.1f} MB</div>"
+                    f"<video controls preload=\"metadata\" style=\"width:100%;max-width:960px;background:#000;\" src=\"/recordings/video/{segment['video_segment_id']}\"></video>"
+                    f"<div style=\"margin-top:8px;\"><a href=\"/recordings/video/{segment['video_segment_id']}\">Open video file</a></div>"
+                    "</article>"
+                )
+            )
+        status_line = ""
+        if trip is not None:
+            status_line = f"<p style=\"color:#666;\">Status: {trip.get('status')} | Started: {trip.get('started_at_utc')}</p>"
+        return (
+            "<html><head><title>Signomat Trip Recordings</title></head>"
+            "<body style=\"font-family:sans-serif;margin:24px;\">"
+            f"<h1>{trip_id}</h1>"
+            f"{status_line}"
+            "<p><a href=\"/recordings\">Back to recordings</a></p>"
+            + "".join(cards)
+            + "</body></html>"
+        )
+
+    @app.get("/recordings/video/{segment_id}")
+    def recordings_video(segment_id: str):
+        segment = runtime.database.video_segment_by_id(segment_id)
+        if not segment:
+            raise HTTPException(status_code=404, detail="video segment not found")
+        relative_path = segment.get("file_path")
+        if not relative_path:
+            raise HTTPException(status_code=404, detail="video file missing")
+        video_path = runtime.storage.base_dir / Path(relative_path)
+        if not video_path.exists():
+            raise HTTPException(status_code=404, detail="video file missing on disk")
+        return FileResponse(video_path, media_type="video/mp4", filename=video_path.name)
 
     @app.get("/preview", response_class=HTMLResponse)
     def preview():

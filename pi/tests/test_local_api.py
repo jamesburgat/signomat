@@ -49,10 +49,27 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
         assert preview_page.status_code == 200
         assert "Signomat live preview" in preview_page.text
 
+        recordings_page = client.get("/recordings")
+        assert recordings_page.status_code == 200
+        assert "Trip Recordings" in recordings_page.text
+
         with client.stream("GET", "/preview.mjpg?max_frames=1") as response:
             assert response.status_code == 200
             assert response.headers["content-type"].startswith("multipart/x-mixed-replace")
             first_chunk = next(response.iter_bytes())
             assert b"Content-Type: image/jpeg" in first_chunk
+
+        recent_videos = client.get("/video/recent").json()
+        assert recent_videos
+        trip_id = recent_videos[0]["trip_id"]
+        segment_id = recent_videos[0]["video_segment_id"]
+
+        trip_recordings = client.get(f"/recordings/{trip_id}")
+        assert trip_recordings.status_code == 200
+        assert trip_id in trip_recordings.text
+
+        video_file = client.get(f"/recordings/video/{segment_id}")
+        assert video_file.status_code == 200
+        assert video_file.headers["content-type"].startswith("video/mp4")
     finally:
         runtime.stop()
