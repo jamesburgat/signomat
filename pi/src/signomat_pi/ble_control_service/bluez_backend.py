@@ -130,6 +130,7 @@ class GattCharacteristic(ServiceInterface):
             raise _bluez_error("NotSupported", "characteristic does not support notify")
         was_notifying = self._notifying_sessions > 0
         self._notifying_sessions += 1
+        LOGGER.info("BLE notify start %s subscribers=%s", self.uuid, self._notifying_sessions)
         if not was_notifying:
             self.emit_properties_changed({"Notifying": True})
 
@@ -140,6 +141,7 @@ class GattCharacteristic(ServiceInterface):
         if self._notifying_sessions == 0:
             return
         self._notifying_sessions -= 1
+        LOGGER.info("BLE notify stop %s subscribers=%s", self.uuid, self._notifying_sessions)
         if self._notifying_sessions == 0:
             self.emit_properties_changed({"Notifying": False})
 
@@ -180,6 +182,7 @@ class CommandCharacteristic(GattCharacteristic):
     @dbus_method(name="WriteValue")
     def write_value(self, value: "ay", options: "a{sv}") -> "":
         try:
+            LOGGER.info("BLE command write %s bytes=%s", self.uuid, len(value))
             self._command_handler(_dbus_bytes_to_bytes(value))
         except Exception as exc:  # pragma: no cover - exercised through BLE writes on device
             raise _bluez_error("Failed", str(exc)) from exc
@@ -342,6 +345,7 @@ class BlueZBackend:
         self.application: BlueZApplication | None = None
         self.refresh_task: asyncio.Task | None = None
         self.refresh_interval = max(0.5, self.config.ble.refresh_interval_seconds)
+        self.last_connected_state = False
 
     def start(self) -> None:
         if self.running:
@@ -460,7 +464,11 @@ class BlueZBackend:
         if not self.application:
             return
         self.application.refresh()
-        self.parent.connected = self.application.has_subscribers()
+        connected = self.application.has_subscribers()
+        if connected != self.last_connected_state:
+            LOGGER.info("BLE subscriber state changed connected=%s", connected)
+            self.last_connected_state = connected
+        self.parent.connected = connected
 
     async def _resolve_adapter_path(self) -> str:
         requested = self.config.ble.adapter
@@ -490,7 +498,7 @@ class BlueZBackend:
         assert self.adapter_path is not None
         alias = self.config.ble.advertise_name or self.config.app.device_name
         await self._set_adapter_property("Powered", Variant("b", True))
-        await self._set_adapter_property("Pairable", Variant("b", True))
+        await self._set_adapter_property("Pairable", Variant("b", self.config.ble.pairable))
         await self._set_adapter_property("Alias", Variant("s", alias))
         if self.config.ble.discoverable:
             await self._set_adapter_property("Discoverable", Variant("b", True))

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+import socket
+import fcntl
+import struct
 import threading
 import time
 from dataclasses import asdict
@@ -49,6 +52,8 @@ class SignomatRuntime:
         self.inference_active = config.inference.enabled
         self.detection_count_trip = 0
         self.last_detection: dict | None = None
+        self._wifi_connected = False
+        self._wifi_checked_at = 0.0
         self.lcd = LCDStatusDisplay()
         self.lcd_running = threading.Event()
         self.lcd_thread: threading.Thread | None = None
@@ -260,6 +265,26 @@ class SignomatRuntime:
         except ValueError:
             return None
 
+    def wifi_connected(self) -> bool:
+        now = time.monotonic()
+        if now - self._wifi_checked_at < 5.0:
+            return self._wifi_connected
+        interface = self.config.app.wifi_interface
+        self._wifi_checked_at = now
+        if not interface:
+            self._wifi_connected = False
+            return False
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            packed = struct.pack("256s", interface[:15].encode("utf-8"))
+            fcntl.ioctl(sock.fileno(), 0x8915, packed)
+            self._wifi_connected = True
+        except OSError:
+            self._wifi_connected = False
+        finally:
+            sock.close()
+        return self._wifi_connected
+
     def status_snapshot(self) -> dict:
         storage = self.storage.storage_status()
         sync = self.sync_service.status()
@@ -269,7 +294,7 @@ class SignomatRuntime:
             "inference_active": self.inference_active,
             "current_trip_id": self.current_trip_id,
             "detection_count_trip": self.detection_count_trip,
-            "last_detection_label": self.last_detection["category_label"] if self.last_detection else None,
+            "last_detection_label": (self.last_detection["specific_label"] or self.last_detection["category_label"]) if self.last_detection else None,
             "last_detection_timestamp": self.last_detection["timestamp_utc"] if self.last_detection else None,
             "storage": storage,
             "upload_queue_size": sync.get("total", 0),
@@ -277,6 +302,7 @@ class SignomatRuntime:
             "gps_health": self.gps_service.health,
             "pi_temperature_c": self.temperature_c(),
             "ble_connected": self.ble_service.connected if self.config.ble.enabled else False,
+            "wifi_connected": self.wifi_connected(),
         }
 
     def health(self) -> dict:
@@ -290,15 +316,21 @@ class SignomatRuntime:
 
     def refresh_lcd(self) -> None:
         gps = self.gps_service.latest_sample()
-        best_label = self.last_detection["specific_label"] if self.last_detection else None
+        last_label = None
+        if self.last_detection:
+            last_label = self.last_detection["specific_label"] or self.last_detection["category_label"]
+        sync_status = self.sync_service.status()["last_result"]
         self.lcd.update_runtime(
             gps_health=self.gps_service.health,
             speed_mps=gps.speed if gps else None,
             event_count=self.detection_count_trip,
-            best_label=best_label,
+            last_label=last_label,
             trip_active=self.current_trip_id is not None,
             recording_active=self.recording_active,
             inference_active=self.inference_active,
+            ble_connected=self.ble_service.connected if self.config.ble.enabled else False,
+            wifi_connected=self.wifi_connected(),
+            sync_status=sync_status,
         )
 
     def _lcd_loop(self) -> None:

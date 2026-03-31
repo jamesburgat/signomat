@@ -127,32 +127,72 @@ class LCDStatusDisplay:
         self.show_message("Signomat", message, force=True)
 
     def show_saved_event(self, label: str):
-        self.show_message("Event saved", label, transient_seconds=2, force=True)
+        self.show_message("Sign saved", label, transient_seconds=2, force=True)
+
+    def _status_flag(self, prefix: str, active: bool) -> str:
+        return f"{prefix}{'+' if active else '-'}"
+
+    def _page_line(
+        self,
+        event_count: int,
+        last_label: str | None,
+        trip_active: bool,
+        recording_active: bool,
+        inference_active: bool,
+        sync_status: str,
+    ) -> str:
+        pages: list[str] = []
+        if trip_active:
+            activity_parts = ["Trip"]
+            activity_parts.append("Rec" if recording_active else "Pause")
+            activity_parts.append("Scan" if inference_active else "Hold")
+            pages.append(" ".join(activity_parts))
+            pages.append(f"Signs {event_count:03d}")
+            pages.append(f"Last {last_label}" if last_label else "Last none yet")
+        else:
+            pages.append("Ready" if inference_active else "Detection off")
+            if sync_status not in {"idle", "ok", "success"}:
+                pages.append(f"Sync {sync_status}")
+            else:
+                pages.append("Sync idle")
+            pages.append("Start trip to log")
+        page_index = int(time.monotonic() // 3) % len(pages)
+        return pages[page_index]
 
     def update_runtime(
         self,
         gps_health: str,
         speed_mps: float | None,
         event_count: int,
-        best_label: str | None,
+        last_label: str | None,
         trip_active: bool,
         recording_active: bool,
         inference_active: bool,
+        ble_connected: bool,
+        wifi_connected: bool,
+        sync_status: str,
     ):
-        gps_text = "GPS" if gps_health in {"fix", "mock"} else "NO GPS"
         speed_mph = None if speed_mps is None else speed_mps * 2.23694
-        line1 = gps_text if speed_mph is None else f"{gps_text} {speed_mph:>4.1f}mph"
-
-        if event_count and best_label:
-            line2 = f"{event_count} {best_label}"
-        elif trip_active and recording_active and inference_active:
-            line2 = "Recording+AI"
-        elif trip_active and recording_active:
-            line2 = "Recording"
-        elif trip_active:
-            line2 = "Trip active"
+        line1 = f"{self._status_flag('P', ble_connected)} {self._status_flag('W', wifi_connected)} "
+        if gps_health in {"fix", "mock"}:
+            speed_text = "GPS ok" if speed_mph is None else f"{int(round(speed_mph)):>3}mph"
+        elif gps_health == "no_fix":
+            speed_text = "GPS seek"
+        elif gps_health == "error":
+            speed_text = "GPS err"
+        elif gps_health == "unavailable":
+            speed_text = "GPS off"
         else:
-            line2 = "Idle"
+            speed_text = "GPS idle"
+        line1 = f"{line1}{speed_text}"
+        line2 = self._page_line(
+            event_count=event_count,
+            last_label=last_label,
+            trip_active=trip_active,
+            recording_active=recording_active,
+            inference_active=inference_active,
+            sync_status=sync_status,
+        )
         self.show_message(line1, line2)
 
     def close(self):

@@ -22,6 +22,7 @@ class AppSection(BaseModel):
     device_name: str = "signomat-pi"
     base_data_dir: str = "/data/signomat"
     log_level: str = "INFO"
+    wifi_interface: str = "wlan0"
 
 
 class CameraSection(BaseModel):
@@ -94,6 +95,7 @@ class BLESection(BaseModel):
     adapter: str | None = None
     advertise_name: str | None = None
     discoverable: bool = True
+    pairable: bool = False
     refresh_interval_seconds: float = 1.0
 
 
@@ -154,6 +156,10 @@ def _env_float(name: str) -> float | None:
     value = _env_text(name)
     if value is None:
         return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
 
 
 def _env_bool(name: str) -> bool | None:
@@ -166,10 +172,6 @@ def _env_bool(name: str) -> bool | None:
     if normalized in {"0", "false", "no", "off"}:
         return False
     return None
-    try:
-        return float(value)
-    except ValueError:
-        return None
 
 
 def env_overrides() -> dict[str, Any]:
@@ -181,6 +183,7 @@ def env_overrides() -> dict[str, Any]:
     app_mapping = {
         "base_data_dir": _env_text("SIGNOMAT_BASE_DATA_DIR"),
         "log_level": _env_text("SIGNOMAT_LOG_LEVEL"),
+        "wifi_interface": _env_text("SIGNOMAT_WIFI_INTERFACE"),
     }
     for key, value in app_mapping.items():
         if value is not None:
@@ -210,6 +213,7 @@ def env_overrides() -> dict[str, Any]:
         "adapter": _env_text("SIGNOMAT_BLE_ADAPTER"),
         "advertise_name": _env_text("SIGNOMAT_BLE_ADVERTISE_NAME"),
         "discoverable": _env_bool("SIGNOMAT_BLE_DISCOVERABLE"),
+        "pairable": _env_bool("SIGNOMAT_BLE_PAIRABLE"),
         "refresh_interval_seconds": _env_float("SIGNOMAT_BLE_REFRESH_INTERVAL_SECONDS"),
     }
     for key, value in ble_mapping.items():

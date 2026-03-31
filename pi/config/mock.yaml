@@ -63,6 +63,7 @@ ble:
   adapter: hci0
   advertise_name: signomat-mock
   discoverable: true
+  pairable: false
   refresh_interval_seconds: 1.0
 
 mock:

@@ -63,10 +63,32 @@ class GPSDProvider(GPSProvider):
     def __init__(self) -> None:
         if gpsd is None:
             raise RuntimeError("gpsd package is not installed")
+        self._connect()
+
+    def _connect(self) -> None:
         gpsd.connect()
 
     def read(self) -> GPSPoint:
-        packet = gpsd.get_current()
+        try:
+            packet = gpsd.get_current()
+        except UserWarning as exc:
+            if "GPS not active" not in str(exc):
+                raise
+            LOGGER.warning("gpsd watch inactive; reconnecting")
+            self._connect()
+            try:
+                packet = gpsd.get_current()
+            except UserWarning:
+                return GPSPoint(
+                    timestamp_utc=utc_now_text(),
+                    lat=None,
+                    lon=None,
+                    speed=None,
+                    heading=None,
+                    altitude=None,
+                    fix_quality="no_fix",
+                    source="gpsd",
+                )
         mode = getattr(packet, "mode", 0)
         has_fix = bool(mode and mode >= 2)
         return GPSPoint(
