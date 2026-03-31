@@ -199,6 +199,7 @@ def env_overrides() -> dict[str, Any]:
         "height": _env_int("SIGNOMAT_CAMERA_HEIGHT"),
         "fps": _env_int("SIGNOMAT_CAMERA_FPS"),
         "warmup_seconds": _env_float("SIGNOMAT_CAMERA_WARMUP_SECONDS"),
+        "chunk_seconds": _env_int("SIGNOMAT_CAMERA_CHUNK_SECONDS"),
     }
     for key, value in mapping.items():
         if value is not None:
