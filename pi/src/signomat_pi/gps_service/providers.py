@@ -68,14 +68,15 @@ class GPSDProvider(GPSProvider):
     def read(self) -> GPSPoint:
         packet = gpsd.get_current()
         mode = getattr(packet, "mode", 0)
+        has_fix = bool(mode and mode >= 2)
         return GPSPoint(
             timestamp_utc=utc_now_text(),
-            lat=getattr(packet, "lat", None),
-            lon=getattr(packet, "lon", None),
-            speed=getattr(packet, "hspeed", None),
-            heading=getattr(packet, "track", None),
-            altitude=getattr(packet, "alt", None),
-            fix_quality="fix" if mode and mode >= 2 else "no_fix",
+            lat=getattr(packet, "lat", None) if has_fix else None,
+            lon=getattr(packet, "lon", None) if has_fix else None,
+            speed=getattr(packet, "hspeed", None) if has_fix else None,
+            heading=getattr(packet, "track", None) if has_fix else None,
+            altitude=getattr(packet, "alt", None) if has_fix else None,
+            fix_quality="fix" if has_fix else "no_fix",
             source="gpsd",
         )
 
