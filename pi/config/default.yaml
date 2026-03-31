@@ -1,0 +1,73 @@
+app:
+  device_name: signomat-pi
+  base_data_dir: /data/signomat
+  log_level: INFO
+
+camera:
+  backend: auto
+  device: null
+  index: null
+  fourcc: null
+  width: 1280
+  height: 720
+  fps: 20
+  rotation: 0
+  codec: mp4v
+  warmup_seconds: 1.0
+  chunk_seconds: 60
+  retention_days: 14
+  low_storage_stop_mb: 2048
+
+gps:
+  provider: auto
+  sample_interval_seconds: 1.0
+  ring_buffer_size: 300
+
+inference:
+  enabled: true
+  interval_seconds: 0.35
+  save_crops: true
+  save_unknown_signs: false
+  thumbnail_max_edge: 480
+  max_candidates: 4
+  min_box_area: 900
+  max_box_area_ratio: 0.12
+  min_box_fill_ratio: 0.2
+  min_detector_confidence: 0.58
+  min_classifier_confidence: 0.7
+  border_ignore_margin_px: 6
+  dedupe_window_seconds: 6.0
+  dedupe_iou_threshold: 0.25
+  preprocessing:
+    downscale_width: 960
+    color_normalization: true
+    contrast_normalization: true
+    red_blue_yellow_priors: true
+    shape_priors: true
+    day_night_preset: auto
+
+api:
+  host: 0.0.0.0
+  port: 8080
+
+sync:
+  enabled: false
+  batch_size: 25
+
+ble:
+  enabled: false
+  mode: mock
+  adapter: hci0
+  advertise_name: null
+  discoverable: true
+  refresh_interval_seconds: 1.0
+
+mock:
+  enabled: false
+  gps_seed_lat: 40.7128
+  gps_seed_lon: -74.0060
+  moving_speed_mps: 12.0
+  frame_text_overlay: true
+
+taxonomy:
+  config_path: pi/config/taxonomy.yaml

@@ -1,0 +1,73 @@
+version: 1
+defaults:
+  fallback:
+    category_id: unknown_sign
+    category_label: unknown_sign
+    specific_label: unknown_sign
+    grouping_mode: fallback_unknown
+
+rules:
+  - match:
+      raw_label: stop
+    output:
+      category_id: stop
+      category_label: stop
+      specific_label: stop
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label: yield
+    output:
+      category_id: yield
+      category_label: yield
+      specific_label: yield
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label: crossing
+    output:
+      category_id: crossing
+      category_label: crossing
+      specific_label: crossing
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label_prefix: speed_limit_
+    output:
+      category_id: speed_limit
+      category_label: speed_limit
+      specific_label_from_raw: true
+      grouping_mode: grouped
+
+  - match:
+      raw_label: warning_diamond
+    output:
+      category_id: warning_general
+      category_label: warning_general
+      specific_label: warning_diamond
+      grouping_mode: grouped
+
+  - match:
+      raw_label: mandatory_round
+    output:
+      category_id: mandatory_general
+      category_label: mandatory_general
+      specific_label: mandatory_round
+      grouping_mode: grouped
+
+  - match:
+      raw_label: prohibition_round
+    output:
+      category_id: prohibition_general
+      category_label: prohibition_general
+      specific_label: prohibition_round
+      grouping_mode: grouped
+
+  - match:
+      raw_label: information_general
+    output:
+      category_id: information_general
+      category_label: information_general
+      specific_label: information_general
+      grouping_mode: grouped
+

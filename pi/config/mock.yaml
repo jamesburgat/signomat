@@ -1,0 +1,71 @@
+app:
+  device_name: signomat-mock
+  base_data_dir: ./data/signomat
+  log_level: DEBUG
+
+camera:
+  backend: mock
+  fourcc: null
+  width: 1280
+  height: 720
+  fps: 10
+  rotation: 0
+  codec: mp4v
+  warmup_seconds: 0.1
+  chunk_seconds: 30
+  retention_days: 3
+  low_storage_stop_mb: 256
+
+gps:
+  provider: mock
+  sample_interval_seconds: 1.0
+  ring_buffer_size: 120
+
+inference:
+  enabled: true
+  interval_seconds: 0.5
+  save_crops: true
+  save_unknown_signs: false
+  thumbnail_max_edge: 320
+  max_candidates: 4
+  min_box_area: 500
+  max_box_area_ratio: 0.18
+  min_box_fill_ratio: 0.18
+  min_detector_confidence: 0.52
+  min_classifier_confidence: 0.68
+  border_ignore_margin_px: 4
+  dedupe_window_seconds: 4.0
+  dedupe_iou_threshold: 0.25
+  preprocessing:
+    downscale_width: 960
+    color_normalization: true
+    contrast_normalization: true
+    red_blue_yellow_priors: true
+    shape_priors: true
+    day_night_preset: day
+
+api:
+  host: 127.0.0.1
+  port: 8080
+
+sync:
+  enabled: false
+  batch_size: 10
+
+ble:
+  enabled: true
+  mode: mock
+  adapter: hci0
+  advertise_name: signomat-mock
+  discoverable: true
+  refresh_interval_seconds: 1.0
+
+mock:
+  enabled: true
+  gps_seed_lat: 40.7128
+  gps_seed_lon: -74.0060
+  moving_speed_mps: 10.0
+  frame_text_overlay: true
+
+taxonomy:
+  config_path: pi/config/taxonomy.yaml

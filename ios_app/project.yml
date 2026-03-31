@@ -1,0 +1,26 @@
+name: SignomatControl
+options:
+  bundleIdPrefix: com.signomat
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: 17.0
+targets:
+  SignomatControl:
+    type: application
+    platform: iOS
+    sources:
+      - SignomatControl/Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.signomat.control
+        SWIFT_VERSION: 5.10
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone:
+          - UIInterfaceOrientationPortrait
+    info:
+      path: SignomatControl/Info.plist
+      properties:
+        UILaunchScreen: {}
+        NSBluetoothAlwaysUsageDescription: Signomat uses Bluetooth to control and monitor your Pi.
+        NSBluetoothPeripheralUsageDescription: Signomat uses Bluetooth to connect to your Pi.
+

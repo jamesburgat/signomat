@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "signomat"
+version = "0.1.0"
+description = "Offline-first Raspberry Pi vehicle sign detection and archive system"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116,<1.0",
+  "uvicorn>=0.35,<1.0",
+  "pydantic>=2.9,<3.0",
+  "PyYAML>=6.0,<7.0",
+  "numpy>=2.0,<3.0",
+  "opencv-python>=4.10,<5.0",
+  "RPLCD>=1.4,<2.0",
+  "gpsd-py3>=0.3,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28,<1.0",
+  "pytest>=8.3,<9.0",
+]
+ble = [
+  "dbus-fast>=2.30,<3.0",
+]
+
+[project.scripts]
+signomat = "signomat_pi.cli.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "pi/src"}
+
+[tool.setuptools.packages.find]
+where = ["pi/src"]
+
+[tool.pytest.ini_options]
+testpaths = ["pi/tests"]

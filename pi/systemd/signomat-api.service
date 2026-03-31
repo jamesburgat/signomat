@@ -1,0 +1,13 @@
+[Unit]
+Description=Signomat Local API Alias
+After=signomat.service
+Requires=signomat.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/true
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+

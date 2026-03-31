@@ -1,0 +1,17 @@
+[Unit]
+Description=Signomat Pi Runtime
+After=local-fs.target
+Wants=local-fs.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/signomat
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/signomat/pi/src
+EnvironmentFile=-/etc/default/signomat
+ExecStart=/opt/signomat/.venv/bin/python -m signomat_pi.cli.main --config /opt/signomat/pi/config/default.yaml serve
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
