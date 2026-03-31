@@ -1,0 +1,18 @@
+{
+  "name": "@signomat/worker-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "d1:migrate:local": "wrangler d1 migrations apply ARCHIVE_DB --local",
+    "d1:migrate:remote": "wrangler d1 migrations apply ARCHIVE_DB --remote"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260320.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.9.0"
+  }
+}

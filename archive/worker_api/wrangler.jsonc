@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "signomat-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-03-30",
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "ARCHIVE_DB",
+      "database_name": "signomat-archive",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "signomat-media"
+    },
+    {
+      "binding": "THUMBS_BUCKET",
+      "bucket_name": "signomat-thumbs"
+    }
+  ],
+  "vars": {
+    "PUBLIC_BASE_URL": "https://signomat-api.REPLACE_WITH_SUBDOMAIN.workers.dev"
+  }
+}
