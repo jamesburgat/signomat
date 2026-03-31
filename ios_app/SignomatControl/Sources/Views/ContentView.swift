@@ -20,6 +20,7 @@ struct ContentView: View {
                                 viewModel.manager.send(command)
                             }
                             .buttonStyle(.borderedProminent)
+                            .disabled(!viewModel.manager.isConnected)
                         }
                     }
                 }
@@ -28,19 +29,37 @@ struct ContentView: View {
             .navigationTitle("Signomat")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(viewModel.manager.isConnected ? "Disconnect" : "Connect") {
+                    Button(connectButtonLabel) {
                         viewModel.manager.isConnected ? viewModel.manager.disconnect() : viewModel.manager.connect()
                     }
+                    .disabled(viewModel.manager.isScanning && !viewModel.manager.isConnected)
                 }
             }
         }
     }
 
+    private var connectButtonLabel: String {
+        if viewModel.manager.isConnected {
+            return "Disconnect"
+        }
+        if viewModel.manager.isScanning {
+            return "Scanning..."
+        }
+        return "Connect"
+    }
+
     private var statusCard: some View {
         let status = viewModel.manager.status
         return VStack(alignment: .leading, spacing: 12) {
-            Label(viewModel.manager.isConnected ? "Connected" : "Disconnected", systemImage: viewModel.manager.isConnected ? "dot.radiowaves.left.and.right" : "bolt.horizontal.circle")
-                .font(.headline)
+            Label(
+                viewModel.manager.isConnected ? "Connected" : "Disconnected",
+                systemImage: viewModel.manager.isConnected ? "dot.radiowaves.left.and.right" : "bolt.horizontal.circle"
+            )
+            .font(.headline)
+            statusRow("Bluetooth", viewModel.manager.bluetoothState)
+            statusRow("Connection", viewModel.manager.connectionState)
+            statusRow("Discovered Device", viewModel.manager.discoveredPeripheralName ?? "None")
+            statusRow("Last Event", viewModel.manager.lastEvent)
             statusRow("Trip ID", status.tripID ?? "None")
             statusRow("Trip Active", status.trip ? "Yes" : "No")
             statusRow("Recording", status.rec ? "Yes" : "No")
@@ -69,12 +88,13 @@ struct ContentView: View {
     }
 
     private func statusRow(_ label: String, _ value: String) -> some View {
-        HStack {
+        HStack(alignment: .top) {
             Text(label)
                 .foregroundStyle(.secondary)
             Spacer()
             Text(value)
                 .fontWeight(.semibold)
+                .multilineTextAlignment(.trailing)
         }
     }
 
