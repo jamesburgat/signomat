@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 
 enum SignomatBLE {
     static let deviceServiceUUID = "7B1E0001-5D1F-4AA0-9A7D-6F5C0B6C1000"
@@ -142,6 +143,18 @@ struct LiveStatus {
         lon = payload.lon
         spd = payload.spd
         head = payload.head
+    }
+}
+
+struct TripBreadcrumb: Identifiable, Equatable {
+    let id = UUID()
+    let coordinate: CLLocationCoordinate2D
+    let timestamp: Date
+
+    static func == (lhs: TripBreadcrumb, rhs: TripBreadcrumb) -> Bool {
+        lhs.coordinate.latitude == rhs.coordinate.latitude &&
+        lhs.coordinate.longitude == rhs.coordinate.longitude &&
+        lhs.timestamp == rhs.timestamp
     }
 }
 

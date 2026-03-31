@@ -1,4 +1,6 @@
+import CoreLocation
 import Foundation
+import MapKit
 import SwiftUI
 
 struct ContentView: View {
@@ -14,6 +16,7 @@ struct ContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     statusCard
+                    mapCard
                     LazyVGrid(columns: commandGrid, spacing: 12) {
                         ForEach(SignomatCommand.allCases) { command in
                             Button(command.title) {
@@ -70,6 +73,8 @@ struct ContentView: View {
             statusRow("GPS", status.gpsFix ? "Fix" : status.gps)
             statusRow("Coordinates", coordinatesText(status))
             statusRow("Speed", speedText(status))
+            statusRow("Trail Points", "\(viewModel.manager.tripBreadcrumbs.count)")
+            statusRow("Trail Distance", trailDistanceText)
             statusRow("Storage Free", "\(status.freeMB) MB")
             statusRow("Storage Used", "\(status.usedMB) MB")
             statusRow("Upload Queue", "\(status.queue)")
@@ -79,6 +84,50 @@ struct ContentView: View {
                 Text(error)
                     .font(.footnote)
                     .foregroundStyle(.red)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var mapCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Trip Map")
+                    .font(.headline)
+                Spacer()
+                Button("Clear Trail") {
+                    viewModel.manager.clearTripBreadcrumbs()
+                }
+                .disabled(viewModel.manager.tripBreadcrumbs.isEmpty)
+            }
+
+            if viewModel.manager.tripBreadcrumbs.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("No breadcrumb trail yet")
+                        .fontWeight(.semibold)
+                    Text("Once the Pi is connected and sending GPS fixes during a trip, the route will draw here.")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Color.secondary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            } else {
+                Map(initialPosition: .automatic) {
+                    if viewModel.manager.tripBreadcrumbs.count > 1 {
+                        MapPolyline(coordinates: trailCoordinates)
+                            .stroke(.blue, lineWidth: 4)
+                    }
+                    if let latest = viewModel.manager.tripBreadcrumbs.last {
+                        Marker("Pi", coordinate: latest.coordinate)
+                            .tint(.red)
+                    }
+                }
+                .frame(height: 260)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
             }
         }
         .padding()
@@ -111,5 +160,24 @@ struct ContentView: View {
     private func temperatureText(_ status: LiveStatus) -> String {
         guard let tempC = status.tempC else { return "Unavailable" }
         return String(format: "%.1f C", tempC)
+    }
+
+    private var trailCoordinates: [CLLocationCoordinate2D] {
+        viewModel.manager.tripBreadcrumbs.map(\.coordinate)
+    }
+
+    private var trailDistanceText: String {
+        let trail = viewModel.manager.tripBreadcrumbs
+        guard trail.count > 1 else { return "0 m" }
+        var totalMeters: CLLocationDistance = 0
+        for index in 1..<trail.count {
+            let previous = CLLocation(latitude: trail[index - 1].coordinate.latitude, longitude: trail[index - 1].coordinate.longitude)
+            let current = CLLocation(latitude: trail[index].coordinate.latitude, longitude: trail[index].coordinate.longitude)
+            totalMeters += current.distance(from: previous)
+        }
+        if totalMeters >= 1000 {
+            return String(format: "%.2f km", totalMeters / 1000)
+        }
+        return String(format: "%.0f m", totalMeters)
     }
 }

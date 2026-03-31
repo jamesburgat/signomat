@@ -1,5 +1,6 @@
 import Combine
 import CoreBluetooth
+import CoreLocation
 import Foundation
 
 final class BLEManager: NSObject, ObservableObject {
@@ -11,6 +12,7 @@ final class BLEManager: NSObject, ObservableObject {
     @Published var discoveredPeripheralName: String?
     @Published var lastEvent = "Waiting for Bluetooth"
     @Published var lastCommandError: String?
+    @Published var tripBreadcrumbs: [TripBreadcrumb] = []
 
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
@@ -57,6 +59,11 @@ final class BLEManager: NSObject, ObservableObject {
         if let peripheral {
             central.cancelPeripheralConnection(peripheral)
         }
+    }
+
+    func clearTripBreadcrumbs() {
+        tripBreadcrumbs = []
+        lastEvent = "Cleared map trail"
     }
 
     func send(_ command: SignomatCommand) {
@@ -233,6 +240,7 @@ extension BLEManager: CBPeripheralDelegate {
         }
         if uuid == CBUUID(string: SignomatBLE.sessionStateCharacteristicUUID),
            let payload = try? decoder.decode(SessionStatePayload.self, from: data) {
+            handleTripTransition(from: status.tripID, to: payload.tripID, tripActive: payload.trip)
             status.merge(payload)
             return
         }
@@ -254,7 +262,33 @@ extension BLEManager: CBPeripheralDelegate {
         if uuid == CBUUID(string: SignomatBLE.gpsStatusCharacteristicUUID),
            let payload = try? decoder.decode(GPSStatusPayload.self, from: data) {
             status.merge(payload)
+            appendBreadcrumbIfNeeded(payload)
         }
+    }
+
+    private func handleTripTransition(from oldTripID: String?, to newTripID: String?, tripActive: Bool) {
+        if oldTripID != newTripID {
+            tripBreadcrumbs = []
+            if let newTripID, tripActive {
+                lastEvent = "Started trail for \(newTripID)"
+            }
+        } else if !tripActive && !tripBreadcrumbs.isEmpty {
+            lastEvent = "Trip stopped. Trail preserved in app."
+        }
+    }
+
+    private func appendBreadcrumbIfNeeded(_ payload: GPSStatusPayload) {
+        guard status.trip || status.tripID != nil else { return }
+        guard payload.fix, let lat = payload.lat, let lon = payload.lon else { return }
+        let point = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        if let last = tripBreadcrumbs.last {
+            let lastLocation = CLLocation(latitude: last.coordinate.latitude, longitude: last.coordinate.longitude)
+            let currentLocation = CLLocation(latitude: lat, longitude: lon)
+            if currentLocation.distance(from: lastLocation) < 5 {
+                return
+            }
+        }
+        tripBreadcrumbs.append(TripBreadcrumb(coordinate: point, timestamp: Date()))
     }
 
     private func scheduleScanTimeout() {
