@@ -67,6 +67,7 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
         trip_recordings = client.get(f"/recordings/{trip_id}")
         assert trip_recordings.status_code == 200
         assert trip_id in trip_recordings.text
+        assert "Play Full Trip" in trip_recordings.text
 
         video_file = client.get(f"/recordings/video/{segment_id}")
         assert video_file.status_code == 200

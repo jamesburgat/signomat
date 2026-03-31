@@ -69,10 +69,17 @@ class ActiveSegment:
 
 
 @dataclass(slots=True)
+class RecordingOverlay:
+    bbox: tuple[int, int, int, int]
+    label: str
+    confidence: float
+    expires_at: datetime
+
+
+@dataclass(slots=True)
 class RecentDetection:
     event_id: str
     group_id: str
     category_id: str
     bbox: tuple[int, int, int, int]
     seen_at: datetime
-

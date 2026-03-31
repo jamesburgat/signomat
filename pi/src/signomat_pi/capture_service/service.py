@@ -3,13 +3,13 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import cv2
 
 from signomat_pi.common.config import SignomatConfig
-from signomat_pi.common.models import ActiveSegment, FramePacket
+from signomat_pi.common.models import ActiveSegment, FramePacket, RecordingOverlay
 from signomat_pi.common.storage import StorageManager
 from signomat_pi.common.utils import stable_id, utc_now, utc_now_text
 from signomat_pi.capture_service.camera_sources import create_camera_source
@@ -33,6 +33,7 @@ class CaptureService:
         self.recording_enabled = False
         self.writer = None
         self.active_segment: ActiveSegment | None = None
+        self.overlays: list[RecordingOverlay] = []
 
     def start(self) -> None:
         self.camera.start()
@@ -53,6 +54,7 @@ class CaptureService:
             self.active_trip_id = trip_id
             if trip_id is None:
                 self.recording_enabled = False
+                self.overlays.clear()
                 self._close_segment()
 
     def start_recording(self) -> None:
@@ -69,6 +71,37 @@ class CaptureService:
             if self.latest_packet is None:
                 return None
             return FramePacket(self.latest_packet.frame.copy(), self.latest_packet.timestamp, self.latest_packet.frame_id)
+
+    def note_detection_overlay(
+        self,
+        label: str,
+        bbox: tuple[int, int, int, int],
+        confidence: float,
+        original_shape,
+        processed_shape,
+        seen_at: datetime,
+    ) -> None:
+        orig_h, orig_w = original_shape[:2]
+        proc_h, proc_w = processed_shape[:2]
+        scale_x = orig_w / max(proc_w, 1)
+        scale_y = orig_h / max(proc_h, 1)
+        x1, y1, x2, y2 = bbox
+        scaled = (
+            max(0, min(orig_w - 1, int(round(x1 * scale_x)))),
+            max(0, min(orig_h - 1, int(round(y1 * scale_y)))),
+            max(1, min(orig_w, int(round(x2 * scale_x)))),
+            max(1, min(orig_h, int(round(y2 * scale_y)))),
+        )
+        with self.lock:
+            self._trim_overlays(seen_at)
+            self.overlays.append(
+                RecordingOverlay(
+                    bbox=scaled,
+                    label=label,
+                    confidence=confidence,
+                    expires_at=seen_at + timedelta(seconds=self.config.camera.overlay_hold_seconds),
+                )
+            )
 
     def current_segment_reference(self, timestamp: datetime) -> tuple[str | None, int | None]:
         with self.lock:
@@ -165,6 +198,28 @@ class CaptureService:
             self._open_segment(frame.shape)
             if self.writer is None or self.active_segment is None:
                 return
-        self.writer.write(frame)
+        output_frame = self._annotate_frame(frame, timestamp) if self.config.camera.annotate_recording else frame
+        self.writer.write(output_frame)
         self.active_segment.frames_written += 1
 
+    def _annotate_frame(self, frame, timestamp: datetime):
+        self._trim_overlays(timestamp)
+        if not self.overlays:
+            return frame
+        annotated = frame.copy()
+        for overlay in self.overlays:
+            x1, y1, x2, y2 = overlay.bbox
+            cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), 3)
+            cv2.putText(
+                annotated,
+                f"{overlay.label} {overlay.confidence:.2f}",
+                (x1, max(28, y1 - 10)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 0),
+                2,
+            )
+        return annotated
+
+    def _trim_overlays(self, now: datetime) -> None:
+        self.overlays = [overlay for overlay in self.overlays if overlay.expires_at >= now]

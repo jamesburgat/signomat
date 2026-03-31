@@ -78,6 +78,15 @@ class InferenceService:
                     if not accept:
                         self.database.increment_suppressed_count(dedupe_ref)
                         continue
+                    overlay_label = taxonomy.specific_label or taxonomy.category_label
+                    self.capture_service.note_detection_overlay(
+                        overlay_label,
+                        candidate.bbox,
+                        classified.confidence,
+                        packet.frame.shape,
+                        processed.shape,
+                        packet.timestamp,
+                    )
                     event_id = dedupe_ref
                     group_id = self.deduper.group_id_for_event(event_id)
                     assets = self.assets.save_detection_assets(

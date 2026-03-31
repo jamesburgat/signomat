@@ -37,6 +37,8 @@ class CameraSection(BaseModel):
     codec: str = "mp4v"
     warmup_seconds: float = 1.0
     chunk_seconds: int = 60
+    annotate_recording: bool = True
+    overlay_hold_seconds: float = 2.5
     retention_days: int = 14
     low_storage_stop_mb: int = 2048
 

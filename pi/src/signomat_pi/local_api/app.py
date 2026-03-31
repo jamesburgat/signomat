@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 
@@ -156,19 +157,21 @@ def create_app(runtime) -> FastAPI:
         if not segments:
             raise HTTPException(status_code=404, detail="trip recordings not found")
         trip = next((item for item in runtime.database.recent_trips(500) if item["trip_id"] == trip_id), None)
-        cards: list[str] = []
+        sources = [f"/recordings/video/{segment['video_segment_id']}" for segment in reversed(segments)]
+        playlist_json = json.dumps(sources)
+        rows: list[str] = []
         for segment in segments:
             size_mb = (segment.get("file_size") or 0) / 1024 / 1024
             duration = segment.get("duration_sec") or 0
-            cards.append(
+            rows.append(
                 (
-                    "<article style=\"margin-bottom:28px;padding:16px;border:1px solid #ddd;border-radius:12px;\">"
-                    f"<h3 style=\"margin-top:0;\">{segment['video_segment_id']}</h3>"
-                    f"<div style=\"margin-bottom:8px;color:#666;\">Start: {segment.get('start_timestamp_utc')} | "
-                    f"Duration: {duration:.1f}s | Size: {size_mb:.1f} MB</div>"
-                    f"<video controls preload=\"metadata\" style=\"width:100%;max-width:960px;background:#000;\" src=\"/recordings/video/{segment['video_segment_id']}\"></video>"
-                    f"<div style=\"margin-top:8px;\"><a href=\"/recordings/video/{segment['video_segment_id']}\">Open video file</a></div>"
-                    "</article>"
+                    "<li style=\"margin-bottom:10px;\">"
+                    f"<button type=\"button\" onclick=\"playSegment('/recordings/video/{segment['video_segment_id']}')\" "
+                    "style=\"padding:8px 12px;margin-right:8px;\">Play</button>"
+                    f"<strong>{segment['video_segment_id']}</strong><br />"
+                    f"<span style=\"color:#666;\">Start: {segment.get('start_timestamp_utc')} | Duration: {duration:.1f}s | Size: {size_mb:.1f} MB</span> "
+                    f"<a href=\"/recordings/video/{segment['video_segment_id']}\">Direct link</a>"
+                    "</li>"
                 )
             )
         status_line = ""
@@ -180,7 +183,44 @@ def create_app(runtime) -> FastAPI:
             f"<h1>{trip_id}</h1>"
             f"{status_line}"
             "<p><a href=\"/recordings\">Back to recordings</a></p>"
-            + "".join(cards)
+            "<div style=\"margin-bottom:24px;padding:16px;border:1px solid #ddd;border-radius:12px;\">"
+            "<h2 style=\"margin-top:0;\">Trip Player</h2>"
+            "<p style=\"color:#666;\">Chunks stay separate on disk for reliability, but this player lets you watch the whole trip in sequence in the browser.</p>"
+            "<video id=\"trip-player\" controls preload=\"metadata\" style=\"width:100%;max-width:960px;background:#000;\"></video>"
+            "<div style=\"margin-top:12px;display:flex;gap:10px;\">"
+            "<button type=\"button\" onclick=\"playAll()\" style=\"padding:8px 12px;\">Play Full Trip</button>"
+            "<button type=\"button\" onclick=\"playFirst()\" style=\"padding:8px 12px;\">Restart From Beginning</button>"
+            "</div></div>"
+            "<h2>Segments</h2>"
+            "<ul style=\"padding-left:20px;\">"
+            + "".join(rows)
+            + "</ul>"
+            + (
+                "<script>"
+                f"const playlist = {playlist_json};"
+                "const player = document.getElementById('trip-player');"
+                "let currentIndex = 0;"
+                "function loadIndex(index, autoplay) {"
+                "  if (!playlist.length) return;"
+                "  currentIndex = Math.max(0, Math.min(index, playlist.length - 1));"
+                "  player.src = playlist[currentIndex];"
+                "  player.load();"
+                "  if (autoplay) player.play().catch(() => {});"
+                "}"
+                "function playSegment(src) {"
+                "  const index = playlist.indexOf(src);"
+                "  if (index >= 0) loadIndex(index, true);"
+                "}"
+                "function playAll() { loadIndex(currentIndex, true); }"
+                "function playFirst() { loadIndex(0, true); }"
+                "player.addEventListener('ended', () => {"
+                "  if (currentIndex + 1 < playlist.length) {"
+                "    loadIndex(currentIndex + 1, true);"
+                "  }"
+                "});"
+                "if (playlist.length) loadIndex(0, false);"
+                "</script>"
+            )
             + "</body></html>"
         )
 

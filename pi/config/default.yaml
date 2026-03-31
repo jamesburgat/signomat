@@ -16,6 +16,8 @@ camera:
   codec: mp4v
   warmup_seconds: 1.0
   chunk_seconds: 60
+  annotate_recording: true
+  overlay_hold_seconds: 2.5
   retention_days: 14
   low_storage_stop_mb: 2048
 
