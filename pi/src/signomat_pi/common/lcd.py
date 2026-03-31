@@ -132,33 +132,6 @@ class LCDStatusDisplay:
     def _status_flag(self, prefix: str, active: bool) -> str:
         return f"{prefix}{'+' if active else '-'}"
 
-    def _page_line(
-        self,
-        event_count: int,
-        last_label: str | None,
-        trip_active: bool,
-        recording_active: bool,
-        inference_active: bool,
-        sync_status: str,
-    ) -> str:
-        pages: list[str] = []
-        if trip_active:
-            activity_parts = ["Trip"]
-            activity_parts.append("Rec" if recording_active else "Pause")
-            activity_parts.append("Scan" if inference_active else "Hold")
-            pages.append(" ".join(activity_parts))
-            pages.append(f"Signs {event_count:03d}")
-            pages.append(f"Last {last_label}" if last_label else "Last none yet")
-        else:
-            pages.append("Ready" if inference_active else "Detection off")
-            if sync_status not in {"idle", "ok", "success"}:
-                pages.append(f"Sync {sync_status}")
-            else:
-                pages.append("Sync idle")
-            pages.append("Start trip to log")
-        page_index = int(time.monotonic() // 3) % len(pages)
-        return pages[page_index]
-
     def update_runtime(
         self,
         gps_health: str,
@@ -185,14 +158,14 @@ class LCDStatusDisplay:
         else:
             speed_text = "GPS idle"
         line1 = f"{line1}{speed_text}"
-        line2 = self._page_line(
-            event_count=event_count,
-            last_label=last_label,
-            trip_active=trip_active,
-            recording_active=recording_active,
-            inference_active=inference_active,
-            sync_status=sync_status,
-        )
+        if trip_active:
+            line2 = f"Signs {event_count:03d}"
+        elif sync_status not in {"idle", "ok", "success"}:
+            line2 = f"Sync {sync_status}"
+        elif inference_active:
+            line2 = "Ready"
+        else:
+            line2 = "Detection off"
         self.show_message(line1, line2)
 
     def close(self):

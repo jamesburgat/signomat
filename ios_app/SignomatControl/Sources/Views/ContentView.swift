@@ -17,6 +17,7 @@ struct ContentView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    tripActionCard
                     statusCard
                     mapCard
                     categoryCard
@@ -86,6 +87,25 @@ struct ContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
+    private var tripActionCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Trip Controls")
+                .font(.headline)
+            Text(viewModel.manager.status.trip ? "Trip is active. Stop it when the drive ends." : "Start a trip to begin logging and automatic recording.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 12) {
+                largeCommandButton(.startTrip, tint: .green)
+                largeCommandButton(.stopTrip, tint: .red)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
     private var categoryCard: some View {
         let categories = viewModel.manager.status.signCategories.sorted { lhs, rhs in
             if lhs.value == rhs.value {
@@ -119,14 +139,14 @@ struct ContentView: View {
 
     private var commandCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Trip Controls")
+            Text("More Actions")
                 .font(.headline)
-            Text("Trips start recording automatically. Use the recording buttons only if you want to override that during an active trip.")
+            Text("Trips start recording automatically. Use these only when you want to override recording or save a snapshot.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
             LazyVGrid(columns: commandGrid, spacing: 12) {
-                ForEach(tripCommands) { command in
+                ForEach(tripCommands.filter { $0 == .saveDiagnosticSnapshot }) { command in
                     commandButton(command)
                 }
             }
@@ -153,6 +173,18 @@ struct ContentView: View {
             viewModel.manager.send(command)
         }
         .buttonStyle(.borderedProminent)
+        .disabled(!viewModel.manager.isConnected)
+    }
+
+    private func largeCommandButton(_ command: SignomatCommand, tint: Color) -> some View {
+        Button(command.title) {
+            viewModel.manager.send(command)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(tint)
+        .font(.headline)
+        .frame(maxWidth: .infinity)
+        .controlSize(.large)
         .disabled(!viewModel.manager.isConnected)
     }
 
