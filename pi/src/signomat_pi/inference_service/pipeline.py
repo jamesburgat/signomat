@@ -46,7 +46,10 @@ class ColorShapeCandidateDetector:
                 cv2.inRange(hsv, (170, 70, 50), (180, 255, 255)),
             ),
             "yellow": cv2.inRange(hsv, (15, 70, 70), (40, 255, 255)),
+            "orange": cv2.inRange(hsv, (8, 90, 90), (24, 255, 255)),
+            "green": cv2.inRange(hsv, (35, 45, 45), (95, 255, 255)),
             "blue": cv2.inRange(hsv, (95, 70, 60), (130, 255, 255)),
+            "white": cv2.inRange(hsv, (0, 0, 150), (180, 55, 255)),
         }
         candidates: list[DetectionCandidate] = []
         frame_area = max(frame.shape[0] * frame.shape[1], 1)
@@ -157,8 +160,16 @@ class HeuristicSignClassifier:
             if self._has_cross_pattern(crop):
                 return ClassificationResult("crossing", 0.76)
             return ClassificationResult("warning_diamond", 0.72)
+        if candidate.color_label == "orange" and candidate.shape_label in {"diamond", "quad"}:
+            return ClassificationResult("work_zone_sign", 0.64)
+        if candidate.color_label == "green" and candidate.shape_label == "quad":
+            return ClassificationResult("guide_sign", 0.60)
+        if candidate.color_label == "white" and candidate.shape_label == "quad":
+            return ClassificationResult("regulatory_rect", 0.58)
         if candidate.color_label == "blue" and candidate.shape_label == "circle":
             return ClassificationResult("mandatory_round", 0.78)
+        if candidate.color_label == "blue" and candidate.shape_label == "quad":
+            return ClassificationResult("service_sign", 0.58)
         if candidate.color_label == "red" and candidate.shape_label == "circle":
             speed = self._match_speed_limit(crop)
             if speed:

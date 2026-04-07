@@ -15,6 +15,7 @@ PYTHONPATH=pi/src python -m signomat_pi.cli.main --config pi/config/mock.yaml st
 PYTHONPATH=pi/src python -m signomat_pi.cli.main --config pi/config/mock.yaml status
 PYTHONPATH=pi/src python -m signomat_pi.cli.main --config pi/config/mock.yaml save-snapshot
 PYTHONPATH=pi/src python -m signomat_pi.cli.main --config pi/config/mock.yaml health-check
+PYTHONPATH=pi/src python -m signomat_pi.cli.main --config pi/config/default.yaml gps-diagnose
 ```
 
 ## Notes

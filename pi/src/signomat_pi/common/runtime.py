@@ -176,6 +176,30 @@ class SignomatRuntime:
         self.ble_service.refresh()
         return {"ok": True}
 
+    def camera_tuning(self) -> dict:
+        return {
+            "ok": True,
+            "persisted": False,
+            "message": "live camera tuning updates apply immediately but are not saved across service restarts",
+            "tuning": self.capture_service.camera_tuning(),
+        }
+
+    def update_camera_tuning(self, updates: dict) -> dict:
+        tuning = self.capture_service.update_camera_tuning(updates)
+        self.config.camera.auto_exposure = tuning["auto_exposure"]
+        self.config.camera.exposure_compensation = tuning["exposure_compensation"]
+        self.config.camera.brightness = tuning["brightness"]
+        self.config.camera.contrast = tuning["contrast"]
+        self.config.camera.exposure_time_us = tuning["exposure_time_us"]
+        self.config.camera.analogue_gain = tuning["analogue_gain"]
+        self.database.add_device_event("camera.tuning", "info", "camera tuning updated", tuning)
+        return {
+            "ok": True,
+            "persisted": False,
+            "message": "live camera tuning updated for the running session",
+            "tuning": tuning,
+        }
+
     def on_detection(self, payload: dict) -> None:
         self.detection_count_trip += 1
         self.last_detection = {

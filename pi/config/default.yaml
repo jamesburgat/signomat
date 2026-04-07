@@ -20,6 +20,12 @@ camera:
   overlay_hold_seconds: 2.5
   retention_days: 14
   low_storage_stop_mb: 2048
+  auto_exposure: true
+  exposure_compensation: 0.0
+  brightness: 0.0
+  contrast: 1.0
+  exposure_time_us: null
+  analogue_gain: null
 
 gps:
   provider: auto
@@ -30,14 +36,14 @@ inference:
   enabled: true
   interval_seconds: 0.35
   save_crops: true
-  save_unknown_signs: false
+  save_unknown_signs: true
   thumbnail_max_edge: 480
-  max_candidates: 4
+  max_candidates: 8
   min_box_area: 900
   max_box_area_ratio: 0.12
   min_box_fill_ratio: 0.2
-  min_detector_confidence: 0.58
-  min_classifier_confidence: 0.7
+  min_detector_confidence: 0.48
+  min_classifier_confidence: 0.58
   border_ignore_margin_px: 6
   dedupe_window_seconds: 6.0
   dedupe_iou_threshold: 0.25
@@ -52,6 +58,9 @@ inference:
 api:
   host: 0.0.0.0
   port: 8080
+  preview_fps: 5.0
+  preview_jpeg_quality: 70
+  preview_max_width: 960
 
 sync:
   enabled: false

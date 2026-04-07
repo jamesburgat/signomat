@@ -34,3 +34,9 @@ Then open `http://127.0.0.1:8080/docs` for the local API when running in mock mo
 - Continuous video, screenshots, GPS, and metadata are stored locally first.
 - Detection localization, classification, and taxonomy mapping are separate stages.
 - Taxonomy mapping is configuration-driven so archives can evolve without retraining the whole stack.
+
+## Training Direction
+
+- The current Pi runtime still uses heuristic detection and classification.
+- The first planned training stack is `Mapillary + LISA + GLARE`.
+- Dataset and label-planning details live in `docs/training-data.md`.

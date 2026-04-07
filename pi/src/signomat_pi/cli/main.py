@@ -12,6 +12,7 @@ import uvicorn
 from signomat_pi.common.config import load_config, repo_root
 from signomat_pi.common.logging import configure_logging
 from signomat_pi.common.runtime import SignomatRuntime
+from signomat_pi.gps_service.diagnostics import diagnose_gps
 from signomat_pi.local_api.app import create_app
 
 
@@ -51,6 +52,13 @@ def health_check(args) -> int:
     response = _http_call("GET", f"http://{args.host}:{args.port}/health")
     print(json.dumps(response, indent=2))
     return 0 if response.get("ok") else 1
+
+
+def gps_diagnose(args) -> int:
+    config = load_config(args.config)
+    response = diagnose_gps(config, host=args.host, port=args.port)
+    print(json.dumps(response, indent=2))
+    return 0 if response.get("ready") else 1
 
 
 def export_local_data(args) -> int:
@@ -127,6 +135,11 @@ def main(argv: list[str] | None = None) -> int:
     health_parser.add_argument("--host", default="127.0.0.1")
     health_parser.add_argument("--port", default=8080, type=int)
     health_parser.set_defaults(func=health_check)
+
+    gps_parser = subparsers.add_parser("gps-diagnose")
+    gps_parser.add_argument("--host", default="127.0.0.1")
+    gps_parser.add_argument("--port", default=2947, type=int)
+    gps_parser.set_defaults(func=gps_diagnose)
 
     replay_parser = subparsers.add_parser("replay-trip")
     replay_parser.add_argument("trip_id")

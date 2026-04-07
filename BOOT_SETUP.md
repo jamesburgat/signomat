@@ -51,6 +51,12 @@ View logs:
 journalctl -u signomat.service -n 100 --no-pager
 ```
 
+Check GPS detection and fix state:
+
+```bash
+/home/jamesburgat/signomat/.venv/bin/python -m signomat_pi.cli.main --config /home/jamesburgat/signomat/pi/config/default.yaml gps-diagnose
+```
+
 Disable at boot:
 
 ```bash
@@ -87,3 +93,13 @@ SIGNOMAT_CAMERA_INDEX=0
 
 You can also leave `SIGNOMAT_CAMERA_BACKEND=auto` to prefer `Picamera2` when a
 Pi camera is detected and fall back to OpenCV otherwise.
+
+If the live image is too dark, start with modest exposure tuning in
+`/etc/default/signomat`, then restart the service:
+
+```bash
+SIGNOMAT_CAMERA_AUTO_EXPOSURE=true
+SIGNOMAT_CAMERA_EXPOSURE_COMPENSATION=0.8
+SIGNOMAT_CAMERA_BRIGHTNESS=0.1
+SIGNOMAT_CAMERA_CONTRAST=1.1
+```

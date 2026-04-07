@@ -41,6 +41,12 @@ class CameraSection(BaseModel):
     overlay_hold_seconds: float = 2.5
     retention_days: int = 14
     low_storage_stop_mb: int = 2048
+    auto_exposure: bool = True
+    exposure_compensation: float = 0.0
+    brightness: float = 0.0
+    contrast: float = 1.0
+    exposure_time_us: int | None = None
+    analogue_gain: float | None = None
 
 
 class GPSSection(BaseModel):
@@ -79,6 +85,9 @@ class InferenceSection(BaseModel):
 class APISection(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8080
+    preview_fps: float = 5.0
+    preview_jpeg_quality: int = 70
+    preview_max_width: int | None = 960
 
 
 class SyncSection(BaseModel):
@@ -200,6 +209,12 @@ def env_overrides() -> dict[str, Any]:
         "fps": _env_int("SIGNOMAT_CAMERA_FPS"),
         "warmup_seconds": _env_float("SIGNOMAT_CAMERA_WARMUP_SECONDS"),
         "chunk_seconds": _env_int("SIGNOMAT_CAMERA_CHUNK_SECONDS"),
+        "auto_exposure": _env_bool("SIGNOMAT_CAMERA_AUTO_EXPOSURE"),
+        "exposure_compensation": _env_float("SIGNOMAT_CAMERA_EXPOSURE_COMPENSATION"),
+        "brightness": _env_float("SIGNOMAT_CAMERA_BRIGHTNESS"),
+        "contrast": _env_float("SIGNOMAT_CAMERA_CONTRAST"),
+        "exposure_time_us": _env_int("SIGNOMAT_CAMERA_EXPOSURE_TIME_US"),
+        "analogue_gain": _env_float("SIGNOMAT_CAMERA_ANALOGUE_GAIN"),
     }
     for key, value in mapping.items():
         if value is not None:
@@ -233,6 +248,15 @@ def env_overrides() -> dict[str, Any]:
     for key, value in sync_mapping.items():
         if value is not None:
             sync[key] = value
+    api: dict[str, Any] = {}
+    api_mapping = {
+        "preview_fps": _env_float("SIGNOMAT_PREVIEW_FPS"),
+        "preview_jpeg_quality": _env_int("SIGNOMAT_PREVIEW_JPEG_QUALITY"),
+        "preview_max_width": _env_int("SIGNOMAT_PREVIEW_MAX_WIDTH"),
+    }
+    for key, value in api_mapping.items():
+        if value is not None:
+            api[key] = value
     overrides: dict[str, Any] = {}
     if app:
         overrides["app"] = app
@@ -244,6 +268,8 @@ def env_overrides() -> dict[str, Any]:
         overrides["ble"] = ble
     if sync:
         overrides["sync"] = sync
+    if api:
+        overrides["api"] = api
     return overrides
 
 

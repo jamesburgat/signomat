@@ -11,7 +11,7 @@ def test_capture_overlay_scales_and_draws_box():
     capture = CaptureService.__new__(CaptureService)
     capture.config = SimpleNamespace(camera=SimpleNamespace(overlay_hold_seconds=2.5, annotate_recording=True))
     capture.overlays = []
-    capture.lock = threading.Lock()
+    capture.state_lock = threading.Lock()
 
     seen_at = datetime.now(UTC)
     capture.note_detection_overlay(

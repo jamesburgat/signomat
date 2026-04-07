@@ -48,6 +48,27 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
         preview_page = client.get("/preview")
         assert preview_page.status_code == 200
         assert "Signomat live preview" in preview_page.text
+        assert "Camera Tuning" in preview_page.text
+
+        tuning = client.get("/camera/tuning")
+        assert tuning.status_code == 200
+        assert tuning.json()["tuning"]["backend"] == "mock"
+
+        tuning_update = client.post(
+            "/camera/tuning",
+            json={
+                "auto_exposure": False,
+                "exposure_time_us": 18000,
+                "analogue_gain": 8.0,
+                "brightness": 0.12,
+                "contrast": 1.18,
+            },
+        )
+        assert tuning_update.status_code == 200
+        updated = tuning_update.json()["tuning"]
+        assert updated["auto_exposure"] is False
+        assert updated["exposure_time_us"] == 18000
+        assert updated["analogue_gain"] == 8.0
 
         recordings_page = client.get("/recordings")
         assert recordings_page.status_code == 200

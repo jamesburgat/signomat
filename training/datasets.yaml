@@ -1,0 +1,59 @@
+version: 1
+
+workspace:
+  root: data/training
+  inventory_output: data/training/manifest/dataset_inventory.json
+  label_schema_output: data/training/manifest/label_schema.json
+
+targets:
+  strategy: broad_first_detection_then_sort
+  broad_categories:
+    - stop
+    - yield
+    - speed_limit
+    - regulatory_general
+    - warning_general
+    - crossing
+    - work_zone_general
+    - guide_general
+    - service_general
+    - text_rectangular_general
+    - other_sign_like
+    - unknown_sign
+
+datasets:
+  - id: mapillary
+    name: Mapillary Traffic Sign Dataset
+    role: primary_broad_coverage
+    local_root: data/training/raw/mapillary
+    expected:
+      images_dir: images
+      annotations_dir: annotations
+    source_url: https://www.mapillary.com/dataset/trafficsign
+    notes:
+      - Large and diverse street-level sign coverage
+      - Best base dataset for broad sign proposal recall
+
+  - id: lisa
+    name: LISA Traffic Sign Dataset
+    role: primary_us_signs
+    local_root: data/training/raw/lisa
+    expected:
+      images_dir: images
+      annotations_dir: annotations
+    source_url: https://cvrr.ucsd.edu/LISA/lisa-traffic-sign-dataset.html
+    notes:
+      - US-focused sign classes
+      - Useful for stop, speed, and other US roadside conventions
+
+  - id: glare
+    name: GLARE
+    role: hard_negative_and_glare_robustness
+    local_root: data/training/raw/glare
+    expected:
+      images_dir: images
+      annotations_dir: annotations
+    source_url: https://arxiv.org/abs/2209.08716
+    notes:
+      - Add after the base merge to improve windshield glare robustness
+      - Especially useful for harsh daytime reflections

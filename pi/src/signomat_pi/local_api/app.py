@@ -5,14 +5,32 @@ import time
 from pathlib import Path
 
 import cv2
+from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+
+
+def resize_frame_for_preview(frame, max_width: int | None):
+    if not max_width or frame.shape[1] <= max_width:
+        return frame
+    scale = max_width / max(frame.shape[1], 1)
+    height = max(1, int(round(frame.shape[0] * scale)))
+    return cv2.resize(frame, (max_width, height))
+
+
+class CameraTuningUpdate(BaseModel):
+    auto_exposure: bool | None = None
+    exposure_compensation: float | None = None
+    brightness: float | None = None
+    contrast: float | None = None
+    exposure_time_us: int | None = None
+    analogue_gain: float | None = None
 
 
 def create_app(runtime) -> FastAPI:
     app = FastAPI(title="Signomat Local API", version="0.1.0")
 
-    def preview_stream(frame_interval_seconds: float, jpeg_quality: int, max_frames: int | None):
+    def preview_stream(frame_interval_seconds: float, jpeg_quality: int, max_frames: int | None, max_width: int | None):
         emitted = 0
         encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality]
         while True:
@@ -22,7 +40,8 @@ def create_app(runtime) -> FastAPI:
             if packet is None:
                 time.sleep(frame_interval_seconds)
                 continue
-            ok, encoded = cv2.imencode(".jpg", packet.frame, encode_params)
+            preview_frame = resize_frame_for_preview(packet.frame, max_width)
+            ok, encoded = cv2.imencode(".jpg", preview_frame, encode_params)
             if not ok:
                 time.sleep(frame_interval_seconds)
                 continue
@@ -109,6 +128,14 @@ def create_app(runtime) -> FastAPI:
     @app.get("/video/recent")
     def video_recent(limit: int = 20):
         return runtime.database.recent_video_segments(limit)
+
+    @app.get("/camera/tuning")
+    def camera_tuning():
+        return runtime.camera_tuning()
+
+    @app.post("/camera/tuning")
+    def camera_tuning_update(update: CameraTuningUpdate):
+        return runtime.update_camera_tuning(update.model_dump(exclude_none=False))
 
     @app.get("/recordings", response_class=HTMLResponse)
     def recordings():
@@ -244,21 +271,110 @@ def create_app(runtime) -> FastAPI:
           <head><title>Signomat Preview</title></head>
           <body style="margin:0;background:#111;color:#eee;font-family:sans-serif;">
             <div style="padding:12px 16px;">Signomat live preview</div>
-            <img src="/preview.mjpg" style="display:block;max-width:100vw;height:auto;" />
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:0 16px 16px;align-items:start;">
+              <div>
+                <img src="/preview.mjpg" style="display:block;max-width:100%;height:auto;border:1px solid #333;" />
+              </div>
+              <div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:16px;">
+                <h2 style="margin-top:0;">Camera Tuning</h2>
+                <p style="color:#bbb;font-size:14px;">Apply live exposure changes for the running session. These updates do not survive a service restart yet.</p>
+                <div id="camera-status" style="min-height:20px;color:#9fe870;margin-bottom:12px;"></div>
+                <div style="display:grid;gap:10px;">
+                  <label><input id="auto_exposure" type="checkbox" /> Auto exposure</label>
+                  <label>Exposure compensation
+                    <input id="exposure_compensation" type="number" step="0.1" style="width:100%;margin-top:4px;" />
+                  </label>
+                  <label>Exposure time (us)
+                    <input id="exposure_time_us" type="number" step="100" style="width:100%;margin-top:4px;" />
+                  </label>
+                  <label>Analogue gain
+                    <input id="analogue_gain" type="number" step="0.1" style="width:100%;margin-top:4px;" />
+                  </label>
+                  <label>Brightness
+                    <input id="brightness" type="number" step="0.01" style="width:100%;margin-top:4px;" />
+                  </label>
+                  <label>Contrast
+                    <input id="contrast" type="number" step="0.01" style="width:100%;margin-top:4px;" />
+                  </label>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+                  <button type="button" onclick="applyPreset('day')" style="padding:8px 12px;">Day</button>
+                  <button type="button" onclick="applyPreset('night')" style="padding:8px 12px;">Night</button>
+                  <button type="button" onclick="saveCameraTuning()" style="padding:8px 12px;">Apply</button>
+                  <button type="button" onclick="loadCameraTuning()" style="padding:8px 12px;">Refresh</button>
+                </div>
+              </div>
+            </div>
+            <script>
+              async function loadCameraTuning() {
+                const response = await fetch('/camera/tuning');
+                const payload = await response.json();
+                const tuning = payload.tuning;
+                document.getElementById('auto_exposure').checked = !!tuning.auto_exposure;
+                document.getElementById('exposure_compensation').value = tuning.exposure_compensation ?? 0;
+                document.getElementById('exposure_time_us').value = tuning.exposure_time_us ?? '';
+                document.getElementById('analogue_gain').value = tuning.analogue_gain ?? '';
+                document.getElementById('brightness').value = tuning.brightness ?? 0;
+                document.getElementById('contrast').value = tuning.contrast ?? 1;
+                document.getElementById('camera-status').textContent = payload.message || '';
+              }
+              function applyPreset(name) {
+                if (name === 'day') {
+                  document.getElementById('auto_exposure').checked = false;
+                  document.getElementById('exposure_compensation').value = 0;
+                  document.getElementById('exposure_time_us').value = 9000;
+                  document.getElementById('analogue_gain').value = 4.0;
+                  document.getElementById('brightness').value = 0.08;
+                  document.getElementById('contrast').value = 1.12;
+                } else if (name === 'night') {
+                  document.getElementById('auto_exposure').checked = false;
+                  document.getElementById('exposure_compensation').value = 0;
+                  document.getElementById('exposure_time_us').value = 18000;
+                  document.getElementById('analogue_gain').value = 8.0;
+                  document.getElementById('brightness').value = 0.12;
+                  document.getElementById('contrast').value = 1.18;
+                }
+              }
+              async function saveCameraTuning() {
+                const payload = {
+                  auto_exposure: document.getElementById('auto_exposure').checked,
+                  exposure_compensation: Number(document.getElementById('exposure_compensation').value || 0),
+                  exposure_time_us: document.getElementById('exposure_time_us').value ? Number(document.getElementById('exposure_time_us').value) : null,
+                  analogue_gain: document.getElementById('analogue_gain').value ? Number(document.getElementById('analogue_gain').value) : null,
+                  brightness: Number(document.getElementById('brightness').value || 0),
+                  contrast: Number(document.getElementById('contrast').value || 1),
+                };
+                const response = await fetch('/camera/tuning', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify(payload),
+                });
+                const result = await response.json();
+                document.getElementById('camera-status').textContent = result.message || 'Camera tuning updated';
+                await loadCameraTuning();
+              }
+              loadCameraTuning().catch((err) => {
+                document.getElementById('camera-status').textContent = String(err);
+              });
+            </script>
           </body>
         </html>
         """
 
     @app.get("/preview.mjpg")
     def preview_mjpg(
-        fps: float = 5.0,
-        jpeg_quality: int = 80,
+        fps: float | None = None,
+        jpeg_quality: int | None = None,
+        max_width: int | None = None,
         max_frames: int | None = None,
     ):
-        frame_interval_seconds = 1.0 / max(fps, 0.2)
-        quality = max(30, min(jpeg_quality, 95))
+        target_fps = fps if fps is not None else runtime.config.api.preview_fps
+        target_quality = jpeg_quality if jpeg_quality is not None else runtime.config.api.preview_jpeg_quality
+        target_width = max_width if max_width is not None else runtime.config.api.preview_max_width
+        frame_interval_seconds = 1.0 / max(target_fps, 0.2)
+        quality = max(30, min(target_quality, 95))
         return StreamingResponse(
-            preview_stream(frame_interval_seconds, quality, max_frames),
+            preview_stream(frame_interval_seconds, quality, max_frames, target_width),
             media_type="multipart/x-mixed-replace; boundary=frame",
         )
 

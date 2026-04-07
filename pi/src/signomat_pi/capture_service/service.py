@@ -26,7 +26,8 @@ class CaptureService:
         self.camera = create_camera_source(config)
         self.running = threading.Event()
         self.thread: threading.Thread | None = None
-        self.lock = threading.Lock()
+        self.frame_lock = threading.Lock()
+        self.state_lock = threading.Lock()
         self.frame_id = 0
         self.latest_packet: FramePacket | None = None
         self.active_trip_id: str | None = None
@@ -46,11 +47,12 @@ class CaptureService:
         self.running.clear()
         if self.thread:
             self.thread.join(timeout=3)
-        self._close_segment()
+        with self.state_lock:
+            self._close_segment()
         self.camera.stop()
 
     def set_trip(self, trip_id: str | None) -> None:
-        with self.lock:
+        with self.state_lock:
             self.active_trip_id = trip_id
             if trip_id is None:
                 self.recording_enabled = False
@@ -58,19 +60,25 @@ class CaptureService:
                 self._close_segment()
 
     def start_recording(self) -> None:
-        with self.lock:
+        with self.state_lock:
             self.recording_enabled = True
 
     def stop_recording(self) -> None:
-        with self.lock:
+        with self.state_lock:
             self.recording_enabled = False
             self._close_segment()
 
     def latest_frame(self) -> FramePacket | None:
-        with self.lock:
+        with self.frame_lock:
             if self.latest_packet is None:
                 return None
             return FramePacket(self.latest_packet.frame.copy(), self.latest_packet.timestamp, self.latest_packet.frame_id)
+
+    def camera_tuning(self) -> dict:
+        return self.camera.tuning()
+
+    def update_camera_tuning(self, updates: dict) -> dict:
+        return self.camera.apply_tuning(updates)
 
     def note_detection_overlay(
         self,
@@ -92,7 +100,7 @@ class CaptureService:
             max(1, min(orig_w, int(round(x2 * scale_x)))),
             max(1, min(orig_h, int(round(y2 * scale_y)))),
         )
-        with self.lock:
+        with self.state_lock:
             self._trim_overlays(seen_at)
             self.overlays.append(
                 RecordingOverlay(
@@ -104,7 +112,7 @@ class CaptureService:
             )
 
     def current_segment_reference(self, timestamp: datetime) -> tuple[str | None, int | None]:
-        with self.lock:
+        with self.state_lock:
             if not self.active_segment:
                 return None, None
             delta_ms = int((timestamp - self.active_segment.start_dt).total_seconds() * 1000)
@@ -115,9 +123,10 @@ class CaptureService:
             frame = self.camera.capture_frame()
             timestamp = utc_now()
             frame = self._apply_rotation(frame)
-            with self.lock:
+            with self.frame_lock:
                 self.frame_id += 1
                 self.latest_packet = FramePacket(frame.copy(), timestamp, self.frame_id)
+            with self.state_lock:
                 if self.recording_enabled and self.active_trip_id:
                     self._write_frame(frame, timestamp)
 

@@ -32,3 +32,23 @@ def test_detector_prefers_centered_sign_shapes_over_noise():
     classification = classifier.classify(frame, candidate)
     assert classification.raw_label == "stop"
     assert classification.confidence >= config.inference.min_classifier_confidence
+
+
+def test_classifier_emits_broad_green_and_white_sign_categories():
+    config = load_config("pi/config/mock.yaml")
+    detector = ColorShapeCandidateDetector(config.inference)
+    classifier = HeuristicSignClassifier()
+
+    green_frame = np.zeros((400, 400, 3), dtype=np.uint8)
+    cv2.rectangle(green_frame, (140, 140), (260, 260), (0, 180, 0), thickness=-1)
+    green_candidates = detector.detect(green_frame)
+    assert green_candidates
+    green_label = classifier.classify(green_frame, green_candidates[0]).raw_label
+    assert green_label == "guide_sign"
+
+    white_frame = np.zeros((400, 400, 3), dtype=np.uint8)
+    cv2.rectangle(white_frame, (140, 140), (260, 260), (255, 255, 255), thickness=-1)
+    white_candidates = detector.detect(white_frame)
+    assert white_candidates
+    white_label = classifier.classify(white_frame, white_candidates[0]).raw_label
+    assert white_label == "regulatory_rect"

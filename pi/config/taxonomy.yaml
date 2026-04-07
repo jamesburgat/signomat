@@ -48,6 +48,38 @@ rules:
       grouping_mode: grouped
 
   - match:
+      raw_label: work_zone_sign
+    output:
+      category_id: work_zone_general
+      category_label: work_zone_general
+      specific_label: work_zone_sign
+      grouping_mode: grouped
+
+  - match:
+      raw_label: guide_sign
+    output:
+      category_id: guide_general
+      category_label: guide_general
+      specific_label: guide_sign
+      grouping_mode: grouped
+
+  - match:
+      raw_label: regulatory_rect
+    output:
+      category_id: regulatory_general
+      category_label: regulatory_general
+      specific_label: regulatory_rect
+      grouping_mode: grouped
+
+  - match:
+      raw_label: service_sign
+    output:
+      category_id: service_general
+      category_label: service_general
+      specific_label: service_sign
+      grouping_mode: grouped
+
+  - match:
       raw_label: mandatory_round
     output:
       category_id: mandatory_general
@@ -70,4 +102,3 @@ rules:
       category_label: information_general
       specific_label: information_general
       grouping_mode: grouped
-
