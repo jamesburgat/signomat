@@ -1,0 +1,34 @@
+name: Deploy Worker API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy-worker.yml"
+      - "archive/shared/**"
+      - "archive/worker_api/**"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Deploy archive worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: archive/worker_api
+          wranglerVersion: "4.9.0"
+          preCommands: wrangler d1 migrations apply ARCHIVE_DB --remote
+          secrets: |
+            SIGNOMAT_INGEST_TOKEN
+        env:
+          SIGNOMAT_INGEST_TOKEN: ${{ secrets.SIGNOMAT_INGEST_TOKEN }}
