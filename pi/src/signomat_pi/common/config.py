@@ -70,6 +70,13 @@ class InferenceSection(BaseModel):
     save_crops: bool = True
     save_unknown_signs: bool = False
     thumbnail_max_edge: int = 480
+    detector_backend: str = "heuristic"
+    detector_model_path: str = "models/sign_detector_yolo11n_any_sign_ncnn_model"
+    detector_imgsz: int = 640
+    classifier_backend: str = "heuristic"
+    classifier_model_path: str = "models/sign_classifier_yolo11n_raw_min100_ncnn_model"
+    classifier_imgsz: int = 224
+    model_verbose: bool = False
     max_candidates: int = 4
     min_box_area: int = 900
     max_box_area_ratio: float = 0.12
@@ -189,6 +196,7 @@ def env_overrides() -> dict[str, Any]:
     app: dict[str, Any] = {}
     camera: dict[str, Any] = {}
     gps: dict[str, Any] = {}
+    inference: dict[str, Any] = {}
     ble: dict[str, Any] = {}
     sync: dict[str, Any] = {}
     app_mapping = {
@@ -225,6 +233,21 @@ def env_overrides() -> dict[str, Any]:
     for key, value in gps_mapping.items():
         if value is not None:
             gps[key] = value
+    inference_mapping = {
+        "detector_backend": _env_text("SIGNOMAT_DETECTOR_BACKEND"),
+        "detector_model_path": _env_text("SIGNOMAT_DETECTOR_MODEL_PATH"),
+        "detector_imgsz": _env_int("SIGNOMAT_DETECTOR_IMGSZ"),
+        "classifier_backend": _env_text("SIGNOMAT_CLASSIFIER_BACKEND"),
+        "classifier_model_path": _env_text("SIGNOMAT_CLASSIFIER_MODEL_PATH"),
+        "classifier_imgsz": _env_int("SIGNOMAT_CLASSIFIER_IMGSZ"),
+        "model_verbose": _env_bool("SIGNOMAT_MODEL_VERBOSE"),
+        "interval_seconds": _env_float("SIGNOMAT_INFERENCE_INTERVAL_SECONDS"),
+        "min_detector_confidence": _env_float("SIGNOMAT_MIN_DETECTOR_CONFIDENCE"),
+        "min_classifier_confidence": _env_float("SIGNOMAT_MIN_CLASSIFIER_CONFIDENCE"),
+    }
+    for key, value in inference_mapping.items():
+        if value is not None:
+            inference[key] = value
     ble_mapping = {
         "enabled": _env_bool("SIGNOMAT_BLE_ENABLED"),
         "mode": _env_text("SIGNOMAT_BLE_MODE"),
@@ -264,6 +287,8 @@ def env_overrides() -> dict[str, Any]:
         overrides["camera"] = camera
     if gps:
         overrides["gps"] = gps
+    if inference:
+        overrides["inference"] = inference
     if ble:
         overrides["ble"] = ble
     if sync:

@@ -38,12 +38,19 @@ inference:
   save_crops: true
   save_unknown_signs: true
   thumbnail_max_edge: 480
+  detector_backend: yolo
+  detector_model_path: models/sign_detector_yolo11n_any_sign_ncnn_model
+  detector_imgsz: 640
+  classifier_backend: yolo
+  classifier_model_path: models/sign_classifier_yolo11n_raw_min100_ncnn_model
+  classifier_imgsz: 224
+  model_verbose: false
   max_candidates: 8
   min_box_area: 900
   max_box_area_ratio: 0.12
   min_box_fill_ratio: 0.2
-  min_detector_confidence: 0.48
-  min_classifier_confidence: 0.58
+  min_detector_confidence: 0.25
+  min_classifier_confidence: 0.0
   border_ignore_margin_px: 6
   dedupe_window_seconds: 6.0
   dedupe_iou_threshold: 0.25

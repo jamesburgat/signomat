@@ -40,6 +40,94 @@ rules:
       grouping_mode: grouped
 
   - match:
+      raw_label_prefix: regulatory_maximum_speed_limit_
+    output:
+      category_id: speed_limit
+      category_label: speed_limit
+      specific_label_from_raw: true
+      grouping_mode: grouped
+
+  - match:
+      raw_label_prefix: speedlimit
+    output:
+      category_id: speed_limit
+      category_label: speed_limit
+      specific_label_from_raw: true
+      grouping_mode: grouped
+
+  - match:
+      raw_label: regulatory_stop_g1
+    output:
+      category_id: stop
+      category_label: stop
+      specific_label: regulatory_stop_g1
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label: regulatory_yield_g1
+    output:
+      category_id: yield
+      category_label: yield
+      specific_label: regulatory_yield_g1
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label: regulatory_no_entry_g1
+    output:
+      category_id: no_entry
+      category_label: no_entry
+      specific_label: regulatory_no_entry_g1
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label: donotenter
+    output:
+      category_id: no_entry
+      category_label: no_entry
+      specific_label: donotenter
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label: keepright
+    output:
+      category_id: keep_right
+      category_label: keep_right
+      specific_label: keepright
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label: oneway
+    output:
+      category_id: one_way
+      category_label: one_way
+      specific_label: oneway
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label: pedestriancrossing
+    output:
+      category_id: crossing
+      category_label: crossing
+      specific_label: pedestriancrossing
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label_prefix: information_pedestrians_crossing_
+    output:
+      category_id: crossing
+      category_label: crossing
+      specific_label_from_raw: true
+      grouping_mode: grouped
+
+  - match:
+      raw_label_prefix: warning_pedestrians_crossing_
+    output:
+      category_id: crossing
+      category_label: crossing
+      specific_label_from_raw: true
+      grouping_mode: grouped
+
+  - match:
       raw_label: warning_diamond
     output:
       category_id: warning_general
@@ -101,4 +189,44 @@ rules:
       category_id: information_general
       category_label: information_general
       specific_label: information_general
+      grouping_mode: grouped
+
+  - match:
+      raw_label: sign
+    output:
+      category_id: sign
+      category_label: sign
+      specific_label: sign
+      grouping_mode: preserve_specific
+
+  - match:
+      raw_label_prefix: regulatory_
+    output:
+      category_id: regulatory_general
+      category_label: regulatory_general
+      specific_label_from_raw: true
+      grouping_mode: grouped
+
+  - match:
+      raw_label_prefix: warning_
+    output:
+      category_id: warning_general
+      category_label: warning_general
+      specific_label_from_raw: true
+      grouping_mode: grouped
+
+  - match:
+      raw_label_prefix: information_
+    output:
+      category_id: information_general
+      category_label: information_general
+      specific_label_from_raw: true
+      grouping_mode: grouped
+
+  - match:
+      raw_label_prefix: complementary_
+    output:
+      category_id: complementary_general
+      category_label: complementary_general
+      specific_label_from_raw: true
       grouping_mode: grouped

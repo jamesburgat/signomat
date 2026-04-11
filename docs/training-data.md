@@ -99,13 +99,14 @@ The next practical milestone is:
 
 ## Separate Classifier Path
 
-The learned classifier should stay separate from the detector:
+The learned classifier stays architecturally separate from the detector:
 
 - detector: fast, always-on, one-class `sign` proposal model
-- classifier: smaller crop model that can run later, on-demand, or in a batch pass
+- classifier: smaller crop model that runs on detector crops and can be disabled with `SIGNOMAT_CLASSIFIER_BACKEND=none`
 
-This avoids loading unnecessary classifier weights into the Pi's hot path while
-still preserving the option to classify saved crops later.
+The default Pi config uses the learned NCNN exports in `models/`. If the ML
+runtime is missing or the model path is unavailable, the runtime logs a warning
+and falls back to the heuristic implementation.
 
 ### Starter U.S. Classifier Taxonomy
 
@@ -153,6 +154,21 @@ with:
 - `crop_manifest.jsonl`
 - `export_summary.json`
 
+### Data-Driven Classifier Export
+
+For the broad raw-label classifier, generate a taxonomy from the normalized
+manifest and export crops with:
+
+```bash
+. .venv/bin/activate
+python scripts/generate_classifier_taxonomy_from_manifest.py \
+  --min-count 100 \
+  --output training/classifier_taxonomy_dataset.yaml
+python scripts/export_sign_classifier_dataset.py \
+  --taxonomy training/classifier_taxonomy_dataset.yaml \
+  --output-dir data/training/exports/classifier_dataset_raw_min100
+```
+
 ### Classifier Training Direction
 
 Do not train the classifier at the same time as the long detector run if you
@@ -164,9 +180,11 @@ When ready, the intended training path is:
 . .venv/bin/activate
 yolo classify train \
   model=yolo11n-cls.pt \
-  data=data/training/exports/classifier_us_signs \
+  data=data/training/exports/classifier_dataset_raw_min100 \
   imgsz=224 \
   epochs=50 \
   batch=64 \
   device=mps
 ```
+
+The deployable checkpoints and NCNN exports are tracked under `models/`.

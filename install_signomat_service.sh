@@ -62,6 +62,13 @@ if [[ ! -f "${ENV_FILE_PATH}" ]]; then
 # SIGNOMAT_CAMERA_CONTRAST=1.1
 # SIGNOMAT_CAMERA_EXPOSURE_TIME_US=12000
 # SIGNOMAT_CAMERA_ANALOGUE_GAIN=2.0
+#
+# Learned model overrides:
+# SIGNOMAT_DETECTOR_BACKEND=yolo
+# SIGNOMAT_DETECTOR_MODEL_PATH=models/sign_detector_yolo11n_any_sign_ncnn_model
+# SIGNOMAT_CLASSIFIER_BACKEND=yolo
+# SIGNOMAT_CLASSIFIER_MODEL_PATH=models/sign_classifier_yolo11n_raw_min100_ncnn_model
+# SIGNOMAT_CLASSIFIER_BACKEND=none
 EOF
     chmod 0644 "${ENV_FILE_PATH}"
 fi

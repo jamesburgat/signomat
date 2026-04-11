@@ -2,7 +2,36 @@ import cv2
 import numpy as np
 
 from signomat_pi.common.config import load_config
-from signomat_pi.inference_service.pipeline import ColorShapeCandidateDetector, HeuristicSignClassifier
+from signomat_pi.common.models import DetectionCandidate
+from signomat_pi.inference_service.pipeline import ColorShapeCandidateDetector, DetectorLabelClassifier, HeuristicSignClassifier
+
+
+def test_default_config_uses_learned_models_and_mock_keeps_heuristics():
+    default_config = load_config("pi/config/default.yaml")
+    assert default_config.inference.detector_backend == "yolo"
+    assert default_config.inference.classifier_backend == "yolo"
+    assert default_config.inference.detector_model_path.endswith("_ncnn_model")
+    assert default_config.inference.classifier_model_path.endswith("_ncnn_model")
+
+    mock_config = load_config("pi/config/mock.yaml")
+    assert mock_config.inference.detector_backend == "heuristic"
+    assert mock_config.inference.classifier_backend == "heuristic"
+
+
+def test_detector_label_classifier_allows_detector_only_mode():
+    classifier = DetectorLabelClassifier()
+    candidate = DetectionCandidate(
+        bbox=(10, 10, 40, 40),
+        detector_label="sign",
+        shape_label="learned",
+        color_label="unknown",
+        confidence=0.42,
+    )
+
+    result = classifier.classify(np.zeros((80, 80, 3), dtype=np.uint8), candidate)
+
+    assert result.raw_label == "sign"
+    assert result.confidence == 0.42
 
 
 def test_detector_prefers_centered_sign_shapes_over_noise():

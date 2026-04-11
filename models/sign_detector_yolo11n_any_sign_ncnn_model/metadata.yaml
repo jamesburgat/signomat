@@ -1,0 +1,19 @@
+description: Ultralytics YOLO11n model trained on /Users/jamesburgat/Documents/signomat/data/training/exports/yolo_any_signs/dataset.yaml
+author: Ultralytics
+date: '2026-04-11T12:58:28.267583'
+version: 8.4.34
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: sign
+args:
+  batch: 1
+  half: false
+channels: 3
+end2end: false

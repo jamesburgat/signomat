@@ -27,6 +27,10 @@ dev = [
 ble = [
   "dbus-fast>=2.30,<3.0",
 ]
+ml = [
+  "ultralytics>=8.4,<9.0",
+  "ncnn>=1.0,<2.0",
+]
 
 [project.scripts]
 signomat = "signomat_pi.cli.main:main"

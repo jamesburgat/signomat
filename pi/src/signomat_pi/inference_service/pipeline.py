@@ -4,6 +4,7 @@ import logging
 from collections import deque
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -141,6 +142,88 @@ class ColorShapeCandidateDetector:
         return "unknown"
 
 
+def _load_yolo_model(model_path: Path, task: str) -> Any:
+    try:
+        from ultralytics import YOLO
+    except ImportError as exc:  # pragma: no cover - exercised on Pi installs without ML extras
+        raise RuntimeError("ultralytics is not installed; install signomat[ml] to use learned models") from exc
+    if not model_path.exists():
+        raise FileNotFoundError(f"model path does not exist: {model_path}")
+    return YOLO(str(model_path), task=task)
+
+
+def _names_lookup(names: Any, class_id: int) -> str:
+    if isinstance(names, dict):
+        return str(names.get(class_id, f"class_{class_id}"))
+    if isinstance(names, list) and 0 <= class_id < len(names):
+        return str(names[class_id])
+    return f"class_{class_id}"
+
+
+def _as_float(value: Any) -> float:
+    if hasattr(value, "item"):
+        return float(value.item())
+    return float(value)
+
+
+class UltralyticsSignDetector:
+    def __init__(
+        self,
+        model_path: Path,
+        imgsz: int,
+        max_candidates: int,
+        confidence_threshold: float,
+        verbose: bool = False,
+    ) -> None:
+        self.model = _load_yolo_model(model_path, "detect")
+        self.imgsz = imgsz
+        self.max_candidates = max_candidates
+        self.confidence_threshold = max(0.001, min(float(confidence_threshold), 0.99))
+        self.verbose = verbose
+
+    def detect(self, frame: np.ndarray) -> list[DetectionCandidate]:
+        results = self.model.predict(
+            source=frame,
+            imgsz=self.imgsz,
+            conf=self.confidence_threshold,
+            max_det=self.max_candidates,
+            verbose=self.verbose,
+        )
+        if not results:
+            return []
+        result = results[0]
+        boxes = getattr(result, "boxes", None)
+        if boxes is None:
+            return []
+
+        frame_h, frame_w = frame.shape[:2]
+        candidates: list[DetectionCandidate] = []
+        names = getattr(result, "names", None) or getattr(self.model, "names", {})
+        for box in boxes:
+            raw_xyxy = box.xyxy[0].tolist()
+            x1, y1, x2, y2 = [float(value) for value in raw_xyxy]
+            left = max(0, min(frame_w - 1, int(round(x1))))
+            top = max(0, min(frame_h - 1, int(round(y1))))
+            right = max(left + 1, min(frame_w, int(round(x2))))
+            bottom = max(top + 1, min(frame_h, int(round(y2))))
+            if right <= left or bottom <= top:
+                continue
+            class_id = int(_as_float(box.cls[0])) if getattr(box, "cls", None) is not None else 0
+            label = _names_lookup(names, class_id)
+            confidence = _as_float(box.conf[0])
+            candidates.append(
+                DetectionCandidate(
+                    bbox=(left, top, right, bottom),
+                    detector_label=label,
+                    shape_label="learned",
+                    color_label="unknown",
+                    confidence=confidence,
+                )
+            )
+        candidates.sort(key=lambda item: item.confidence, reverse=True)
+        return candidates[: self.max_candidates]
+
+
 class HeuristicSignClassifier:
     def __init__(self) -> None:
         self.speed_templates = self._build_speed_templates(("25", "35", "45", "55"))
@@ -215,6 +298,37 @@ class HeuristicSignClassifier:
         diag1 = np.mean(np.diag(edges))
         diag2 = np.mean(np.diag(np.fliplr(edges)))
         return diag1 > 10 and diag2 > 10
+
+
+class DetectorLabelClassifier:
+    def classify(self, frame: np.ndarray, candidate: DetectionCandidate) -> ClassificationResult:
+        return ClassificationResult(candidate.detector_label, candidate.confidence)
+
+
+class UltralyticsCropClassifier:
+    def __init__(self, model_path: Path, imgsz: int, verbose: bool = False) -> None:
+        self.model = _load_yolo_model(model_path, "classify")
+        self.imgsz = imgsz
+        self.verbose = verbose
+
+    def classify(self, frame: np.ndarray, candidate: DetectionCandidate) -> ClassificationResult:
+        x1, y1, x2, y2 = candidate.bbox
+        crop = frame[y1:y2, x1:x2]
+        if crop.size == 0:
+            return ClassificationResult("unknown_sign", 0.0)
+
+        results = self.model.predict(source=crop, imgsz=self.imgsz, verbose=self.verbose)
+        if not results:
+            return ClassificationResult("unknown_sign", 0.0)
+        result = results[0]
+        probs = getattr(result, "probs", None)
+        if probs is None:
+            return ClassificationResult("unknown_sign", 0.0)
+
+        class_id = int(probs.top1)
+        confidence = _as_float(probs.top1conf)
+        names = getattr(result, "names", None) or getattr(self.model, "names", {})
+        return ClassificationResult(_names_lookup(names, class_id), confidence)
 
 
 class Deduplicator:

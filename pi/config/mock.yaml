@@ -35,6 +35,8 @@ inference:
   save_crops: true
   save_unknown_signs: true
   thumbnail_max_edge: 320
+  detector_backend: heuristic
+  classifier_backend: heuristic
   max_candidates: 8
   min_box_area: 500
   max_box_area_ratio: 0.18

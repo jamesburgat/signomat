@@ -5,9 +5,19 @@ import threading
 import time
 from pathlib import Path
 
+from signomat_pi.common.config import resolve_repo_path
 from signomat_pi.common.storage import StorageManager
 from signomat_pi.common.utils import utc_now_text
-from signomat_pi.inference_service.pipeline import AssetWriter, ColorShapeCandidateDetector, Deduplicator, FramePreprocessor, HeuristicSignClassifier
+from signomat_pi.inference_service.pipeline import (
+    AssetWriter,
+    ColorShapeCandidateDetector,
+    Deduplicator,
+    DetectorLabelClassifier,
+    FramePreprocessor,
+    HeuristicSignClassifier,
+    UltralyticsCropClassifier,
+    UltralyticsSignDetector,
+)
 from signomat_pi.inference_service.taxonomy import TaxonomyMapper
 
 
@@ -29,14 +39,46 @@ class InferenceService:
             taxonomy_path = Path(__file__).resolve().parents[4] / config.taxonomy.config_path
         self.taxonomy = TaxonomyMapper(taxonomy_path)
         self.preprocessor = FramePreprocessor(config.inference.preprocessing)
-        self.detector = ColorShapeCandidateDetector(config.inference)
-        self.classifier = HeuristicSignClassifier()
+        self.detector = self._build_detector()
+        self.classifier = self._build_classifier()
         self.deduper = Deduplicator(config.inference.dedupe_window_seconds, config.inference.dedupe_iou_threshold)
         self.assets = AssetWriter(storage, config.inference.thumbnail_max_edge)
         self.running = threading.Event()
         self.enabled = config.inference.enabled
         self.thread: threading.Thread | None = None
         self.last_processed_frame_id = 0
+
+    def _build_detector(self):
+        backend = self.config.inference.detector_backend.lower()
+        if backend == "yolo":
+            try:
+                return UltralyticsSignDetector(
+                    model_path=resolve_repo_path(self.config.inference.detector_model_path),
+                    imgsz=self.config.inference.detector_imgsz,
+                    max_candidates=self.config.inference.max_candidates,
+                    confidence_threshold=self.config.inference.min_detector_confidence,
+                    verbose=self.config.inference.model_verbose,
+                )
+            except Exception as exc:
+                LOGGER.warning("falling back to heuristic detector after learned detector init failed: %s", exc)
+                self.database.add_device_event("inference.detector_fallback", "warning", str(exc))
+        return ColorShapeCandidateDetector(self.config.inference)
+
+    def _build_classifier(self):
+        backend = self.config.inference.classifier_backend.lower()
+        if backend == "yolo":
+            try:
+                return UltralyticsCropClassifier(
+                    model_path=resolve_repo_path(self.config.inference.classifier_model_path),
+                    imgsz=self.config.inference.classifier_imgsz,
+                    verbose=self.config.inference.model_verbose,
+                )
+            except Exception as exc:
+                LOGGER.warning("falling back to heuristic classifier after learned classifier init failed: %s", exc)
+                self.database.add_device_event("inference.classifier_fallback", "warning", str(exc))
+        if backend in {"none", "disabled", "detector_label"}:
+            return DetectorLabelClassifier()
+        return HeuristicSignClassifier()
 
     def start(self) -> None:
         self.running.set()

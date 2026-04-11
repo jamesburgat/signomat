@@ -6,6 +6,6 @@ cd "$(dirname "$0")/.."
 python3 -m venv --system-site-packages .venv
 . .venv/bin/activate
 pip install --upgrade pip
-pip install -e '.[dev,ble]'
+pip install -e '.[dev,ble,ml]'
 
-echo "Signomat environment bootstrapped with system site packages enabled."
+echo "Signomat environment bootstrapped with system site packages and ML extras enabled."
