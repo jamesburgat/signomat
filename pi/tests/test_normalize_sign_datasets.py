@@ -50,25 +50,25 @@ def test_normalize_dataset_parses_coco_csv_and_xml(tmp_path):
     assert records[0]["broad_category"] == "guide_general"
     assert records[0]["bbox_xyxy"] == [10.0, 20.0, 40.0, 60.0]
 
-    lisa_root = repo_root / "data/training/raw/lisa"
-    lisa_images = lisa_root / "images"
-    lisa_annotations = lisa_root / "annotations"
-    lisa_images.mkdir(parents=True)
-    lisa_annotations.mkdir(parents=True)
-    (lisa_images / "frame_b.jpg").write_bytes(b"")
-    (lisa_annotations / "annotations.csv").write_text(
+    glare_csv_root = repo_root / "data/training/raw/glare_csv"
+    glare_csv_images = glare_csv_root / "images"
+    glare_csv_annotations = glare_csv_root / "annotations"
+    glare_csv_images.mkdir(parents=True)
+    glare_csv_annotations.mkdir(parents=True)
+    (glare_csv_images / "frame_b.jpg").write_bytes(b"")
+    (glare_csv_annotations / "annotations.csv").write_text(
         "filename,Annotation tag,Upper left corner X,Upper left corner Y,Lower right corner X,Lower right corner Y\n"
         "frame_b.jpg,stop,1,2,3,4\n",
         encoding="utf-8",
     )
-    lisa_dataset = {
-        "id": "lisa",
-        "name": "LISA Traffic Sign Dataset",
-        "local_root": "data/training/raw/lisa",
+    glare_csv_dataset = {
+        "id": "glare_csv",
+        "name": "GLARE CSV",
+        "local_root": "data/training/raw/glare_csv",
         "expected": {"images_dir": "images", "annotations_dir": "annotations"},
     }
-    lisa_records, _ = MODULE.normalize_dataset(repo_root, lisa_dataset)
-    assert lisa_records[0]["broad_category"] == "stop"
+    glare_csv_records, _ = MODULE.normalize_dataset(repo_root, glare_csv_dataset)
+    assert glare_csv_records[0]["broad_category"] == "stop"
 
     glare_root = repo_root / "data/training/raw/glare"
     glare_images = glare_root / "images"
@@ -97,7 +97,11 @@ def test_normalize_all_builds_summary(tmp_path):
     plan = {
         "version": 1,
         "workspace": {"root": "data/training"},
-        "targets": {"strategy": "broad_first_detection_then_sort", "broad_categories": list(MODULE.BROAD_CATEGORIES)},
+        "targets": {
+            "strategy": "detect_any_sign_then_sort",
+            "detector_categories": ["sign"],
+            "broad_categories": list(MODULE.BROAD_CATEGORIES),
+        },
         "datasets": [
             {
                 "id": "mapillary",
@@ -128,3 +132,71 @@ def test_normalize_all_builds_summary(tmp_path):
     assert len(records) == 1
     assert summary["total_records"] == 1
     assert summary["overall_broad_category_counts"]["speed_limit"] == 1
+
+
+def test_normalize_dataset_supports_mtsd_json(tmp_path):
+    repo_root = tmp_path
+
+    dataset_root = repo_root / "data/training/raw/mapillary"
+    images_dir = dataset_root / "images" / "part_01"
+    annotations_dir = dataset_root / "annotations" / "fully"
+    images_dir.mkdir(parents=True)
+    annotations_dir.mkdir(parents=True)
+    (images_dir / "abc123.jpg").write_bytes(b"")
+    (annotations_dir / "abc123.json").write_text(
+        json.dumps(
+            {
+                "width": 1280,
+                "height": 720,
+                "objects": [
+                    {
+                        "label": "regulatory--stop--g1",
+                        "bbox": {"xmin": 10, "ymin": 20, "xmax": 30, "ymax": 40},
+                        "properties": {"dummy": False},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dataset = {
+        "id": "mapillary",
+        "name": "Mapillary Traffic Sign Dataset",
+        "local_root": "data/training/raw/mapillary",
+        "expected": {"images_dir": "images", "annotations_dir": "annotations"},
+    }
+    records, summary = MODULE.normalize_dataset(repo_root, dataset)
+
+    assert summary["record_count"] == 1
+    assert summary["parser_counts"]["mtsd_json"] == 1
+    assert records[0]["broad_category"] == "stop"
+    assert records[0]["image_path"] == "data/training/raw/mapillary/images/part_01/abc123.jpg"
+
+
+def test_normalize_dataset_resolves_nested_csv_images(tmp_path):
+    repo_root = tmp_path
+
+    dataset_root = repo_root / "data/training/raw/glare"
+    images_dir = dataset_root / "images" / "GLARE_2" / "vid0" / "clip_annotations"
+    annotations_dir = dataset_root / "annotations"
+    images_dir.mkdir(parents=True)
+    annotations_dir.mkdir(parents=True)
+    (images_dir / "frame_001.png").write_bytes(b"")
+    (annotations_dir / "clip.csv").write_text(
+        "Filename,Annotation tag,Upper left corner X,Upper left corner Y,Lower right corner X,Lower right corner Y\n"
+        "frame_001.png,workersAhead,1,2,3,4\n",
+        encoding="utf-8",
+    )
+
+    dataset = {
+        "id": "glare",
+        "name": "GLARE",
+        "local_root": "data/training/raw/glare",
+        "expected": {"images_dir": "images", "annotations_dir": "annotations"},
+    }
+    records, summary = MODULE.normalize_dataset(repo_root, dataset)
+
+    assert summary["record_count"] == 1
+    assert records[0]["broad_category"] == "work_zone_general"
+    assert records[0]["image_path"] == "data/training/raw/glare/images/GLARE_2/vid0/clip_annotations/frame_001.png"

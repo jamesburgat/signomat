@@ -1,0 +1,156 @@
+version: 1
+name: us_sign_classifier_starter_v1
+description: >
+  Starter U.S.-oriented crop-classifier taxonomy. This keeps the label set
+  focused on common American traffic signs that can be mapped cleanly from the
+  current Mapillary/GLARE raw labels. Unmapped global long-tail labels are
+  intentionally skipped for now.
+
+classes:
+  - id: stop
+    exact_raw_labels:
+      - regulatory--stop--g1
+      - stop
+
+  - id: yield
+    exact_raw_labels:
+      - regulatory--yield--g1
+      - yield
+
+  - id: no_entry
+    exact_raw_labels:
+      - regulatory--no-entry--g1
+
+  - id: keep_right
+    raw_label_prefixes:
+      - regulatory--keep-right--
+
+  - id: keep_left
+    raw_label_prefixes:
+      - regulatory--keep-left--
+
+  - id: one_way_straight
+    raw_label_prefixes:
+      - regulatory--one-way-straight--
+
+  - id: one_way_left
+    raw_label_prefixes:
+      - regulatory--one-way-left--
+
+  - id: one_way_right
+    raw_label_prefixes:
+      - regulatory--one-way-right--
+
+  - id: no_left_turn
+    raw_label_prefixes:
+      - regulatory--no-left-turn--
+
+  - id: no_right_turn
+    raw_label_prefixes:
+      - regulatory--no-right-turn--
+
+  - id: no_u_turn
+    raw_label_prefixes:
+      - regulatory--no-u-turn--
+
+  - id: no_parking
+    raw_label_prefixes:
+      - regulatory--no-parking--
+
+  - id: no_stopping
+    raw_label_prefixes:
+      - regulatory--no-stopping--
+
+  - id: parking
+    raw_label_prefixes:
+      - information--parking--
+
+  - id: pedestrian_crossing
+    raw_label_regexes:
+      - ^information--pedestrians-crossing--
+      - ^warning--pedestrians-crossing--
+
+  - id: school_crossing
+    raw_label_regexes:
+      - school.*cross
+      - cross.*school
+
+  - id: road_bump
+    raw_label_prefixes:
+      - warning--road-bump--
+
+  - id: curve_left
+    raw_label_prefixes:
+      - warning--curve-left--
+
+  - id: curve_right
+    raw_label_prefixes:
+      - warning--curve-right--
+
+  - id: chevron_left
+    raw_label_prefixes:
+      - complementary--chevron-left--
+
+  - id: chevron_right
+    raw_label_prefixes:
+      - complementary--chevron-right--
+
+  - id: roundabout
+    raw_label_prefixes:
+      - regulatory--roundabout--
+
+  - id: children
+    raw_label_prefixes:
+      - warning--children--
+
+  - id: height_limit
+    raw_label_prefixes:
+      - regulatory--height-limit--
+
+  - id: speed_limit_20
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-20--
+
+  - id: speed_limit_25
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-25--
+
+  - id: speed_limit_30
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-30--
+
+  - id: speed_limit_35
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-35--
+
+  - id: speed_limit_40
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-40--
+
+  - id: speed_limit_45
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-45--
+
+  - id: speed_limit_50
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-50--
+
+  - id: speed_limit_55
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-55--
+
+  - id: speed_limit_60
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-60--
+
+  - id: speed_limit_65
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-65--
+
+  - id: speed_limit_70
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-70--
+
+  - id: speed_limit_75
+    raw_label_regexes:
+      - ^regulatory--maximum-speed-limit-75--

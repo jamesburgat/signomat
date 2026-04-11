@@ -16,5 +16,6 @@ DerivedData/
 /.mypy_cache/
 /data/
 /exports/
+/runs/
+/yolo*.pt
 /archive/frontend/.wrangler/
-

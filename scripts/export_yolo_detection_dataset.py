@@ -26,13 +26,22 @@ DEFAULT_BROAD_CATEGORIES = (
     "other_sign_like",
     "unknown_sign",
 )
+DEFAULT_DETECTOR_CATEGORIES = ("sign",)
 
 
-def load_plan_categories(plan_path: Path) -> list[str]:
+def load_plan_categories(plan_path: Path, label_mode: str) -> list[str]:
     if not plan_path.exists():
+        if label_mode == "any_sign":
+            return list(DEFAULT_DETECTOR_CATEGORIES)
         return list(DEFAULT_BROAD_CATEGORIES)
     payload = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
-    categories = payload.get("targets", {}).get("broad_categories")
+    targets = payload.get("targets", {})
+    if label_mode == "any_sign":
+        categories = targets.get("detector_categories")
+        if not categories:
+            return list(DEFAULT_DETECTOR_CATEGORIES)
+        return [str(item) for item in categories]
+    categories = targets.get("broad_categories")
     if not categories:
         return list(DEFAULT_BROAD_CATEGORIES)
     return [str(item) for item in categories]
@@ -97,11 +106,21 @@ def image_size(path: Path) -> tuple[int, int] | None:
     return width, height
 
 
+def category_for_export(record: dict[str, Any], label_mode: str) -> str | None:
+    if label_mode == "any_sign":
+        return DEFAULT_DETECTOR_CATEGORIES[0]
+    category = record.get("broad_category")
+    if category is None:
+        return None
+    return str(category)
+
+
 def export_manifest_to_yolo(
     manifest_path: Path,
     output_dir: Path,
     repo_root: Path,
     categories: list[str],
+    label_mode: str,
     val_ratio: float,
     image_mode: str,
 ) -> dict[str, Any]:
@@ -118,7 +137,7 @@ def export_manifest_to_yolo(
 
     for record in load_manifest_records(manifest_path):
         image_path_value = record.get("image_path")
-        category = record.get("broad_category")
+        category = category_for_export(record, label_mode)
         bbox = record.get("bbox_xyxy")
         if not image_path_value:
             skipped["missing_image_path"] += 1
@@ -154,7 +173,11 @@ def export_manifest_to_yolo(
             if yolo_box is None:
                 skipped["invalid_bbox"] += 1
                 continue
-            class_id = class_ids[record["broad_category"]]
+            category = category_for_export(record, label_mode)
+            if category is None or category not in class_ids:
+                skipped["unknown_category"] += 1
+                continue
+            class_id = class_ids[category]
             x_center, y_center, box_width, box_height = yolo_box
             label_lines.append(
                 f"{class_id} {x_center:.6f} {y_center:.6f} {box_width:.6f} {box_height:.6f}"
@@ -180,6 +203,7 @@ def export_manifest_to_yolo(
     summary = {
         "manifest_path": str(manifest_path),
         "output_dir": str(output_dir),
+        "label_mode": label_mode,
         "image_mode": image_mode,
         "val_ratio": val_ratio,
         "categories": categories,
@@ -203,7 +227,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=repo_root / "data/training/exports/yolo_broad_signs",
+        default=None,
         help="Directory to write the YOLO dataset into.",
     )
     parser.add_argument(
@@ -224,18 +248,29 @@ def parse_args() -> argparse.Namespace:
         default="symlink",
         help="Whether to symlink or copy source images into the YOLO export.",
     )
+    parser.add_argument(
+        "--label-mode",
+        choices=("any_sign", "broad"),
+        default="any_sign",
+        help="Whether to export a one-class detector dataset or the legacy broad-family dataset.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
-    categories = load_plan_categories(args.plan)
+    categories = load_plan_categories(args.plan, args.label_mode)
+    output_dir = args.output_dir
+    if output_dir is None:
+        export_name = "yolo_any_signs" if args.label_mode == "any_sign" else "yolo_broad_signs"
+        output_dir = repo_root / "data/training/exports" / export_name
     summary = export_manifest_to_yolo(
         manifest_path=args.manifest,
-        output_dir=args.output_dir,
+        output_dir=output_dir,
         repo_root=repo_root,
         categories=categories,
+        label_mode=args.label_mode,
         val_ratio=args.val_ratio,
         image_mode=args.image_mode,
     )

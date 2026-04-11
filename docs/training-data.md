@@ -11,11 +11,6 @@ broader, recall-heavy model.
   - Why: best first source for diverse sign appearances and large sign-class coverage
   - Source: https://www.mapillary.com/dataset/trafficsign
 
-- `LISA Traffic Sign Dataset`
-  - Role: US-focused supplement
-  - Why: improves coverage for US sign conventions that matter more for Signomat than European-only datasets
-  - Source: https://cvrr.ucsd.edu/LISA/lisa-traffic-sign-dataset.html
-
 - `GLARE`
   - Role: robustness supplement
   - Why: adds hard examples under strong glare and windshield-style reflections
@@ -23,7 +18,11 @@ broader, recall-heavy model.
 
 ## Recommended Label Strategy
 
-Use broad-first categories for detector training and archive ingest:
+Use a single `sign` detector for training, and keep the broad families only for later sorting:
+
+- `sign`
+
+Broad families still tracked in the normalized manifest:
 
 - `stop`
 - `yield`
@@ -38,8 +37,8 @@ Use broad-first categories for detector training and archive ingest:
 - `other_sign_like`
 - `unknown_sign`
 
-This keeps recall high and lets review or later classifiers sort into more
-specific sign families after capture.
+This keeps recall high and lets review or later classifiers sort detections into
+more specific sign families after capture.
 
 ## Immediate Runtime Changes
 
@@ -76,25 +75,98 @@ That will:
 - write `data/training/manifest/label_schema.json`
 - normalize supported raw annotations into `data/training/prepared/unified_sign_manifest.jsonl`
 - write `data/training/prepared/normalization_summary.json`
-- export a trainer-ready YOLO dataset under `data/training/exports/yolo_broad_signs`
+- export a trainer-ready YOLO dataset under `data/training/exports/yolo_any_signs`
 
 Expected raw dataset roots:
 
 - `data/training/raw/mapillary`
-- `data/training/raw/lisa`
 - `data/training/raw/glare`
 
 Supported annotation inputs today:
 
 - COCO-style `.json`
-- CSV files in a LISA-like box format
+- CSV files with filename plus `x1/y1/x2/y2` style box columns
 - Pascal VOC `.xml`
 
 ## Next Model Step
 
 The next practical milestone is:
 
-1. normalize Mapillary, LISA, and GLARE into one broad-category manifest
-2. train a high-recall detector on those broad categories
+1. normalize Mapillary and GLARE into one sign-heavy manifest with broad family metadata preserved
+2. train a high-recall detector on a single `sign` class
 3. export an edge-friendly model for the Pi
 4. keep the taxonomy layer on top so archive grouping can still evolve
+
+## Separate Classifier Path
+
+The learned classifier should stay separate from the detector:
+
+- detector: fast, always-on, one-class `sign` proposal model
+- classifier: smaller crop model that can run later, on-demand, or in a batch pass
+
+This avoids loading unnecessary classifier weights into the Pi's hot path while
+still preserving the option to classify saved crops later.
+
+### Starter U.S. Classifier Taxonomy
+
+The repo now includes a starter American sign taxonomy at:
+
+- `training/classifier_taxonomy_us.yaml`
+
+It maps current raw labels into a conservative U.S.-oriented class set such as:
+
+- `stop`
+- `yield`
+- `speed_limit_25`
+- `speed_limit_35`
+- `no_left_turn`
+- `pedestrian_crossing`
+- `chevron_left`
+
+Unmapped global long-tail labels are intentionally skipped for now.
+
+### Classifier Export Commands
+
+To inspect class coverage without writing crops:
+
+```bash
+. .venv/bin/activate
+python scripts/export_sign_classifier_dataset.py --summary-only
+```
+
+To export cropped classifier images:
+
+```bash
+. .venv/bin/activate
+python scripts/export_sign_classifier_dataset.py
+```
+
+That writes a crop dataset under:
+
+- `data/training/exports/classifier_us_signs`
+
+with:
+
+- `train/<class_name>/*.jpg`
+- `val/<class_name>/*.jpg`
+- `dataset.yaml`
+- `crop_manifest.jsonl`
+- `export_summary.json`
+
+### Classifier Training Direction
+
+Do not train the classifier at the same time as the long detector run if you
+want to avoid Mac resource contention.
+
+When ready, the intended training path is:
+
+```bash
+. .venv/bin/activate
+yolo classify train \
+  model=yolo11n-cls.pt \
+  data=data/training/exports/classifier_us_signs \
+  imgsz=224 \
+  epochs=50 \
+  batch=64 \
+  device=mps
+```

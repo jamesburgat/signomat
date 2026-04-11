@@ -38,5 +38,6 @@ Then open `http://127.0.0.1:8080/docs` for the local API when running in mock mo
 ## Training Direction
 
 - The current Pi runtime still uses heuristic detection and classification.
-- The first planned training stack is `Mapillary + LISA + GLARE`.
+- The learned detector path is now a one-class `sign` model trained on `Mapillary + GLARE`.
+- The learned classifier path is separate and crop-based so it can run later or on-demand without sitting in the Pi's hot path.
 - Dataset and label-planning details live in `docs/training-data.md`.

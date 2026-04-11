@@ -1,0 +1,1077 @@
+version: 1
+name: dataset_raw_label_classifier_min100_v1
+description: Data-driven crop-classifier taxonomy generated from the normalized manifest. Each class maps to one raw dataset
+  label so the classifier learns specific sign labels instead of the broad detector families.
+source_manifest: /Users/jamesburgat/Documents/signomat/data/training/prepared/unified_sign_manifest.jsonl
+min_class_count: 100
+excluded_raw_labels:
+- other-sign
+classes:
+- id: regulatory_yield_g1
+  exact_raw_labels:
+  - regulatory--yield--g1
+  sample_count: 2762
+  dataset_counts:
+    mapillary: 2762
+- id: information_pedestrians_crossing_g1
+  exact_raw_labels:
+  - information--pedestrians-crossing--g1
+  sample_count: 2184
+  dataset_counts:
+    mapillary: 2184
+- id: regulatory_no_entry_g1
+  exact_raw_labels:
+  - regulatory--no-entry--g1
+  sample_count: 1973
+  dataset_counts:
+    mapillary: 1973
+- id: complementary_chevron_left_g1
+  exact_raw_labels:
+  - complementary--chevron-left--g1
+  sample_count: 1790
+  dataset_counts:
+    mapillary: 1790
+- id: complementary_chevron_right_g1
+  exact_raw_labels:
+  - complementary--chevron-right--g1
+  sample_count: 1771
+  dataset_counts:
+    mapillary: 1771
+- id: regulatory_stop_g1
+  exact_raw_labels:
+  - regulatory--stop--g1
+  sample_count: 1361
+  dataset_counts:
+    mapillary: 1361
+- id: information_parking_g1
+  exact_raw_labels:
+  - information--parking--g1
+  sample_count: 1273
+  dataset_counts:
+    mapillary: 1273
+- id: regulatory_keep_right_g1
+  exact_raw_labels:
+  - regulatory--keep-right--g1
+  sample_count: 1228
+  dataset_counts:
+    mapillary: 1228
+- id: regulatory_no_stopping_g15
+  exact_raw_labels:
+  - regulatory--no-stopping--g15
+  sample_count: 1221
+  dataset_counts:
+    mapillary: 1221
+- id: regulatory_priority_road_g4
+  exact_raw_labels:
+  - regulatory--priority-road--g4
+  sample_count: 1203
+  dataset_counts:
+    mapillary: 1203
+- id: regulatory_no_parking_g1
+  exact_raw_labels:
+  - regulatory--no-parking--g1
+  sample_count: 1148
+  dataset_counts:
+    mapillary: 1148
+- id: warning_pedestrians_crossing_g4
+  exact_raw_labels:
+  - warning--pedestrians-crossing--g4
+  sample_count: 1123
+  dataset_counts:
+    mapillary: 1123
+- id: regulatory_maximum_speed_limit_40_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-40--g1
+  sample_count: 1003
+  dataset_counts:
+    mapillary: 1003
+- id: regulatory_maximum_speed_limit_30_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-30--g1
+  sample_count: 762
+  dataset_counts:
+    mapillary: 762
+- id: regulatory_maximum_speed_limit_50_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-50--g1
+  sample_count: 685
+  dataset_counts:
+    mapillary: 685
+- id: regulatory_maximum_speed_limit_60_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-60--g1
+  sample_count: 644
+  dataset_counts:
+    mapillary: 644
+- id: regulatory_keep_right_g4
+  exact_raw_labels:
+  - regulatory--keep-right--g4
+  sample_count: 593
+  dataset_counts:
+    mapillary: 593
+- id: warning_curve_left_g2
+  exact_raw_labels:
+  - warning--curve-left--g2
+  sample_count: 570
+  dataset_counts:
+    mapillary: 570
+- id: regulatory_no_parking_g2
+  exact_raw_labels:
+  - regulatory--no-parking--g2
+  sample_count: 557
+  dataset_counts:
+    mapillary: 557
+- id: regulatory_no_parking_g5
+  exact_raw_labels:
+  - regulatory--no-parking--g5
+  sample_count: 547
+  dataset_counts:
+    mapillary: 547
+- id: warning_road_bump_g2
+  exact_raw_labels:
+  - warning--road-bump--g2
+  sample_count: 545
+  dataset_counts:
+    mapillary: 545
+- id: regulatory_one_way_straight_g1
+  exact_raw_labels:
+  - regulatory--one-way-straight--g1
+  sample_count: 524
+  dataset_counts:
+    mapillary: 524
+- id: regulatory_go_straight_g1
+  exact_raw_labels:
+  - regulatory--go-straight--g1
+  sample_count: 475
+  dataset_counts:
+    mapillary: 475
+- id: regulatory_no_left_turn_g1
+  exact_raw_labels:
+  - regulatory--no-left-turn--g1
+  sample_count: 472
+  dataset_counts:
+    mapillary: 472
+- id: warning_curve_right_g2
+  exact_raw_labels:
+  - warning--curve-right--g2
+  sample_count: 466
+  dataset_counts:
+    mapillary: 466
+- id: regulatory_no_u_turn_g1
+  exact_raw_labels:
+  - regulatory--no-u-turn--g1
+  sample_count: 461
+  dataset_counts:
+    mapillary: 461
+- id: regulatory_keep_left_g1
+  exact_raw_labels:
+  - regulatory--keep-left--g1
+  sample_count: 447
+  dataset_counts:
+    mapillary: 447
+- id: complementary_obstacle_delineator_g2
+  exact_raw_labels:
+  - complementary--obstacle-delineator--g2
+  sample_count: 441
+  dataset_counts:
+    mapillary: 441
+- id: regulatory_height_limit_g1
+  exact_raw_labels:
+  - regulatory--height-limit--g1
+  sample_count: 439
+  dataset_counts:
+    mapillary: 439
+- id: regulatory_no_heavy_goods_vehicles_g2
+  exact_raw_labels:
+  - regulatory--no-heavy-goods-vehicles--g2
+  sample_count: 435
+  dataset_counts:
+    mapillary: 435
+- id: warning_road_bump_g1
+  exact_raw_labels:
+  - warning--road-bump--g1
+  sample_count: 422
+  dataset_counts:
+    mapillary: 422
+- id: regulatory_roundabout_g1
+  exact_raw_labels:
+  - regulatory--roundabout--g1
+  sample_count: 403
+  dataset_counts:
+    mapillary: 403
+- id: regulatory_maximum_speed_limit_80_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-80--g1
+  sample_count: 384
+  dataset_counts:
+    mapillary: 384
+- id: regulatory_no_overtaking_g5
+  exact_raw_labels:
+  - regulatory--no-overtaking--g5
+  sample_count: 379
+  dataset_counts:
+    mapillary: 379
+- id: warning_other_danger_g1
+  exact_raw_labels:
+  - warning--other-danger--g1
+  sample_count: 374
+  dataset_counts:
+    mapillary: 374
+- id: warning_children_g2
+  exact_raw_labels:
+  - warning--children--g2
+  sample_count: 372
+  dataset_counts:
+    mapillary: 372
+- id: complementary_go_right_g1
+  exact_raw_labels:
+  - complementary--go-right--g1
+  sample_count: 370
+  dataset_counts:
+    mapillary: 370
+- id: regulatory_one_way_left_g1
+  exact_raw_labels:
+  - regulatory--one-way-left--g1
+  sample_count: 360
+  dataset_counts:
+    mapillary: 360
+- id: regulatory_no_heavy_goods_vehicles_g1
+  exact_raw_labels:
+  - regulatory--no-heavy-goods-vehicles--g1
+  sample_count: 358
+  dataset_counts:
+    mapillary: 358
+- id: complementary_go_left_g1
+  exact_raw_labels:
+  - complementary--go-left--g1
+  sample_count: 351
+  dataset_counts:
+    mapillary: 351
+- id: complementary_keep_left_g1
+  exact_raw_labels:
+  - complementary--keep-left--g1
+  sample_count: 346
+  dataset_counts:
+    mapillary: 346
+- id: regulatory_one_way_left_g3
+  exact_raw_labels:
+  - regulatory--one-way-left--g3
+  sample_count: 341
+  dataset_counts:
+    mapillary: 341
+- id: regulatory_no_right_turn_g1
+  exact_raw_labels:
+  - regulatory--no-right-turn--g1
+  sample_count: 334
+  dataset_counts:
+    mapillary: 334
+- id: pedestriancrossing
+  exact_raw_labels:
+  - pedestrianCrossing
+  sample_count: 330
+  dataset_counts:
+    glare: 330
+- id: regulatory_no_stopping_g2
+  exact_raw_labels:
+  - regulatory--no-stopping--g2
+  sample_count: 330
+  dataset_counts:
+    mapillary: 330
+- id: warning_roadworks_g1
+  exact_raw_labels:
+  - warning--roadworks--g1
+  sample_count: 330
+  dataset_counts:
+    mapillary: 330
+- id: regulatory_one_way_right_g3
+  exact_raw_labels:
+  - regulatory--one-way-right--g3
+  sample_count: 318
+  dataset_counts:
+    mapillary: 318
+- id: complementary_distance_g3
+  exact_raw_labels:
+  - complementary--distance--g3
+  sample_count: 317
+  dataset_counts:
+    mapillary: 317
+- id: regulatory_maximum_speed_limit_70_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-70--g1
+  sample_count: 316
+  dataset_counts:
+    mapillary: 316
+- id: regulatory_no_heavy_goods_vehicles_g4
+  exact_raw_labels:
+  - regulatory--no-heavy-goods-vehicles--g4
+  sample_count: 316
+  dataset_counts:
+    mapillary: 316
+- id: complementary_chevron_right_g5
+  exact_raw_labels:
+  - complementary--chevron-right--g5
+  sample_count: 314
+  dataset_counts:
+    mapillary: 314
+- id: complementary_chevron_left_g5
+  exact_raw_labels:
+  - complementary--chevron-left--g5
+  sample_count: 306
+  dataset_counts:
+    mapillary: 306
+- id: information_tram_bus_stop_g2
+  exact_raw_labels:
+  - information--tram-bus-stop--g2
+  sample_count: 306
+  dataset_counts:
+    mapillary: 306
+- id: regulatory_turn_right_g1
+  exact_raw_labels:
+  - regulatory--turn-right--g1
+  sample_count: 305
+  dataset_counts:
+    mapillary: 305
+- id: regulatory_pass_on_either_side_g1
+  exact_raw_labels:
+  - regulatory--pass-on-either-side--g1
+  sample_count: 303
+  dataset_counts:
+    mapillary: 303
+- id: warning_pedestrians_crossing_g1
+  exact_raw_labels:
+  - warning--pedestrians-crossing--g1
+  sample_count: 300
+  dataset_counts:
+    mapillary: 300
+- id: keepright
+  exact_raw_labels:
+  - keepRight
+  sample_count: 298
+  dataset_counts:
+    glare: 298
+- id: warning_texts_g2
+  exact_raw_labels:
+  - warning--texts--g2
+  sample_count: 297
+  dataset_counts:
+    mapillary: 297
+- id: regulatory_bicycles_only_g1
+  exact_raw_labels:
+  - regulatory--bicycles-only--g1
+  sample_count: 295
+  dataset_counts:
+    mapillary: 295
+- id: complementary_chevron_left_g2
+  exact_raw_labels:
+  - complementary--chevron-left--g2
+  sample_count: 294
+  dataset_counts:
+    mapillary: 294
+- id: warning_junction_with_a_side_road_perpendicular_right_g1
+  exact_raw_labels:
+  - warning--junction-with-a-side-road-perpendicular-right--g1
+  sample_count: 283
+  dataset_counts:
+    mapillary: 283
+- id: warning_curve_right_g1
+  exact_raw_labels:
+  - warning--curve-right--g1
+  sample_count: 275
+  dataset_counts:
+    mapillary: 275
+- id: regulatory_no_overtaking_g1
+  exact_raw_labels:
+  - regulatory--no-overtaking--g1
+  sample_count: 272
+  dataset_counts:
+    mapillary: 272
+- id: complementary_chevron_left_g3
+  exact_raw_labels:
+  - complementary--chevron-left--g3
+  sample_count: 269
+  dataset_counts:
+    mapillary: 269
+- id: information_motorway_g1
+  exact_raw_labels:
+  - information--motorway--g1
+  sample_count: 269
+  dataset_counts:
+    mapillary: 269
+- id: regulatory_one_way_right_g1
+  exact_raw_labels:
+  - regulatory--one-way-right--g1
+  sample_count: 267
+  dataset_counts:
+    mapillary: 267
+- id: regulatory_road_closed_to_vehicles_g3
+  exact_raw_labels:
+  - regulatory--road-closed-to-vehicles--g3
+  sample_count: 263
+  dataset_counts:
+    mapillary: 263
+- id: complementary_distance_g2
+  exact_raw_labels:
+  - complementary--distance--g2
+  sample_count: 260
+  dataset_counts:
+    mapillary: 260
+- id: warning_slippery_road_surface_g1
+  exact_raw_labels:
+  - warning--slippery-road-surface--g1
+  sample_count: 257
+  dataset_counts:
+    mapillary: 257
+- id: warning_school_zone_g2
+  exact_raw_labels:
+  - warning--school-zone--g2
+  sample_count: 255
+  dataset_counts:
+    mapillary: 255
+- id: warning_traffic_merges_right_g1
+  exact_raw_labels:
+  - warning--traffic-merges-right--g1
+  sample_count: 253
+  dataset_counts:
+    mapillary: 253
+- id: warning_children_g1
+  exact_raw_labels:
+  - warning--children--g1
+  sample_count: 252
+  dataset_counts:
+    mapillary: 252
+- id: complementary_chevron_right_g3
+  exact_raw_labels:
+  - complementary--chevron-right--g3
+  sample_count: 249
+  dataset_counts:
+    mapillary: 249
+- id: regulatory_turn_left_g2
+  exact_raw_labels:
+  - regulatory--turn-left--g2
+  sample_count: 246
+  dataset_counts:
+    mapillary: 246
+- id: warning_traffic_signals_g3
+  exact_raw_labels:
+  - warning--traffic-signals--g3
+  sample_count: 245
+  dataset_counts:
+    mapillary: 245
+- id: warning_curve_left_g1
+  exact_raw_labels:
+  - warning--curve-left--g1
+  sample_count: 244
+  dataset_counts:
+    mapillary: 244
+- id: regulatory_shared_path_pedestrians_and_bicycles_g1
+  exact_raw_labels:
+  - regulatory--shared-path-pedestrians-and-bicycles--g1
+  sample_count: 241
+  dataset_counts:
+    mapillary: 241
+- id: complementary_chevron_right_unsure_g6
+  exact_raw_labels:
+  - complementary--chevron-right-unsure--g6
+  sample_count: 232
+  dataset_counts:
+    mapillary: 232
+- id: warning_slippery_road_surface_g2
+  exact_raw_labels:
+  - warning--slippery-road-surface--g2
+  sample_count: 232
+  dataset_counts:
+    mapillary: 232
+- id: regulatory_maximum_speed_limit_90_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-90--g1
+  sample_count: 228
+  dataset_counts:
+    mapillary: 228
+- id: regulatory_maximum_speed_limit_20_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-20--g1
+  sample_count: 225
+  dataset_counts:
+    mapillary: 225
+- id: regulatory_no_overtaking_g2
+  exact_raw_labels:
+  - regulatory--no-overtaking--g2
+  sample_count: 223
+  dataset_counts:
+    mapillary: 223
+- id: information_parking_g3
+  exact_raw_labels:
+  - information--parking--g3
+  sample_count: 218
+  dataset_counts:
+    mapillary: 218
+- id: regulatory_weight_limit_g1
+  exact_raw_labels:
+  - regulatory--weight-limit--g1
+  sample_count: 218
+  dataset_counts:
+    mapillary: 218
+- id: regulatory_maximum_speed_limit_25_g2
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-25--g2
+  sample_count: 212
+  dataset_counts:
+    mapillary: 212
+- id: warning_turn_right_g1
+  exact_raw_labels:
+  - warning--turn-right--g1
+  sample_count: 211
+  dataset_counts:
+    mapillary: 211
+- id: warning_traffic_signals_g1
+  exact_raw_labels:
+  - warning--traffic-signals--g1
+  sample_count: 204
+  dataset_counts:
+    mapillary: 204
+- id: complementary_obstacle_delineator_g1
+  exact_raw_labels:
+  - complementary--obstacle-delineator--g1
+  sample_count: 201
+  dataset_counts:
+    mapillary: 201
+- id: regulatory_turn_right_ahead_g1
+  exact_raw_labels:
+  - regulatory--turn-right-ahead--g1
+  sample_count: 198
+  dataset_counts:
+    mapillary: 198
+- id: stop
+  exact_raw_labels:
+  - stop
+  sample_count: 198
+  dataset_counts:
+    glare: 198
+- id: warning_railroad_crossing_without_barriers_g3
+  exact_raw_labels:
+  - warning--railroad-crossing-without-barriers--g3
+  sample_count: 194
+  dataset_counts:
+    mapillary: 194
+- id: warning_narrow_bridge_g1
+  exact_raw_labels:
+  - warning--narrow-bridge--g1
+  sample_count: 189
+  dataset_counts:
+    mapillary: 189
+- id: warning_height_restriction_g2
+  exact_raw_labels:
+  - warning--height-restriction--g2
+  sample_count: 188
+  dataset_counts:
+    mapillary: 188
+- id: warning_pedestrians_crossing_g5
+  exact_raw_labels:
+  - warning--pedestrians-crossing--g5
+  sample_count: 186
+  dataset_counts:
+    mapillary: 186
+- id: warning_crossroads_g1
+  exact_raw_labels:
+  - warning--crossroads--g1
+  sample_count: 183
+  dataset_counts:
+    mapillary: 183
+- id: complementary_distance_g1
+  exact_raw_labels:
+  - complementary--distance--g1
+  sample_count: 182
+  dataset_counts:
+    mapillary: 182
+- id: warning_junction_with_a_side_road_perpendicular_right_g3
+  exact_raw_labels:
+  - warning--junction-with-a-side-road-perpendicular-right--g3
+  sample_count: 179
+  dataset_counts:
+    mapillary: 179
+- id: complementary_turn_left_g2
+  exact_raw_labels:
+  - complementary--turn-left--g2
+  sample_count: 176
+  dataset_counts:
+    mapillary: 176
+- id: regulatory_pedestrians_only_g1
+  exact_raw_labels:
+  - regulatory--pedestrians-only--g1
+  sample_count: 174
+  dataset_counts:
+    mapillary: 174
+- id: information_parking_g5
+  exact_raw_labels:
+  - information--parking--g5
+  sample_count: 172
+  dataset_counts:
+    mapillary: 172
+- id: regulatory_no_pedestrians_g2
+  exact_raw_labels:
+  - regulatory--no-pedestrians--g2
+  sample_count: 172
+  dataset_counts:
+    mapillary: 172
+- id: complementary_extent_of_prohibition_area_both_direction_g1
+  exact_raw_labels:
+  - complementary--extent-of-prohibition-area-both-direction--g1
+  sample_count: 170
+  dataset_counts:
+    mapillary: 170
+- id: regulatory_maximum_speed_limit_100_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-100--g1
+  sample_count: 170
+  dataset_counts:
+    mapillary: 170
+- id: regulatory_no_stopping_g5
+  exact_raw_labels:
+  - regulatory--no-stopping--g5
+  sample_count: 170
+  dataset_counts:
+    mapillary: 170
+- id: warning_stop_ahead_g9
+  exact_raw_labels:
+  - warning--stop-ahead--g9
+  sample_count: 170
+  dataset_counts:
+    mapillary: 170
+- id: warning_crossroads_g3
+  exact_raw_labels:
+  - warning--crossroads--g3
+  sample_count: 169
+  dataset_counts:
+    mapillary: 169
+- id: warning_texts_g3
+  exact_raw_labels:
+  - warning--texts--g3
+  sample_count: 169
+  dataset_counts:
+    mapillary: 169
+- id: warning_texts_g1
+  exact_raw_labels:
+  - warning--texts--g1
+  sample_count: 166
+  dataset_counts:
+    mapillary: 166
+- id: regulatory_maximum_speed_limit_35_g2
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-35--g2
+  sample_count: 161
+  dataset_counts:
+    mapillary: 161
+- id: information_hospital_g1
+  exact_raw_labels:
+  - information--hospital--g1
+  sample_count: 159
+  dataset_counts:
+    mapillary: 159
+- id: regulatory_go_straight_or_turn_left_g1
+  exact_raw_labels:
+  - regulatory--go-straight-or-turn-left--g1
+  sample_count: 157
+  dataset_counts:
+    mapillary: 157
+- id: information_disabled_persons_g1
+  exact_raw_labels:
+  - information--disabled-persons--g1
+  sample_count: 156
+  dataset_counts:
+    mapillary: 156
+- id: warning_railroad_crossing_without_barriers_g4
+  exact_raw_labels:
+  - warning--railroad-crossing-without-barriers--g4
+  sample_count: 155
+  dataset_counts:
+    mapillary: 155
+- id: warning_winding_road_first_left_g1
+  exact_raw_labels:
+  - warning--winding-road-first-left--g1
+  sample_count: 155
+  dataset_counts:
+    mapillary: 155
+- id: warning_roundabout_g1
+  exact_raw_labels:
+  - warning--roundabout--g1
+  sample_count: 150
+  dataset_counts:
+    mapillary: 150
+- id: warning_junction_with_a_side_road_perpendicular_left_g3
+  exact_raw_labels:
+  - warning--junction-with-a-side-road-perpendicular-left--g3
+  sample_count: 149
+  dataset_counts:
+    mapillary: 149
+- id: regulatory_one_way_left_g2
+  exact_raw_labels:
+  - regulatory--one-way-left--g2
+  sample_count: 147
+  dataset_counts:
+    mapillary: 147
+- id: regulatory_turn_left_g1
+  exact_raw_labels:
+  - regulatory--turn-left--g1
+  sample_count: 146
+  dataset_counts:
+    mapillary: 146
+- id: regulatory_go_straight_or_turn_right_g1
+  exact_raw_labels:
+  - regulatory--go-straight-or-turn-right--g1
+  sample_count: 144
+  dataset_counts:
+    mapillary: 144
+- id: information_dead_end_g1
+  exact_raw_labels:
+  - information--dead-end--g1
+  sample_count: 143
+  dataset_counts:
+    mapillary: 143
+- id: regulatory_maximum_speed_limit_55_g2
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-55--g2
+  sample_count: 143
+  dataset_counts:
+    mapillary: 143
+- id: complementary_maximum_speed_limit_45_g1
+  exact_raw_labels:
+  - complementary--maximum-speed-limit-45--g1
+  sample_count: 141
+  dataset_counts:
+    mapillary: 141
+- id: complementary_tow_away_zone_g1
+  exact_raw_labels:
+  - complementary--tow-away-zone--g1
+  sample_count: 140
+  dataset_counts:
+    mapillary: 140
+- id: warning_double_curve_first_right_g1
+  exact_raw_labels:
+  - warning--double-curve-first-right--g1
+  sample_count: 140
+  dataset_counts:
+    mapillary: 140
+- id: warning_junction_with_a_side_road_perpendicular_left_g1
+  exact_raw_labels:
+  - warning--junction-with-a-side-road-perpendicular-left--g1
+  sample_count: 140
+  dataset_counts:
+    mapillary: 140
+- id: information_end_of_motorway_g1
+  exact_raw_labels:
+  - information--end-of-motorway--g1
+  sample_count: 137
+  dataset_counts:
+    mapillary: 137
+- id: warning_pass_left_or_right_g2
+  exact_raw_labels:
+  - warning--pass-left-or-right--g2
+  sample_count: 136
+  dataset_counts:
+    mapillary: 136
+- id: warning_winding_road_first_right_g1
+  exact_raw_labels:
+  - warning--winding-road-first-right--g1
+  sample_count: 136
+  dataset_counts:
+    mapillary: 136
+- id: warning_trucks_crossing_g1
+  exact_raw_labels:
+  - warning--trucks-crossing--g1
+  sample_count: 134
+  dataset_counts:
+    mapillary: 134
+- id: regulatory_keep_left_g2
+  exact_raw_labels:
+  - regulatory--keep-left--g2
+  sample_count: 133
+  dataset_counts:
+    mapillary: 133
+- id: warning_traffic_merges_right_g2
+  exact_raw_labels:
+  - warning--traffic-merges-right--g2
+  sample_count: 133
+  dataset_counts:
+    mapillary: 133
+- id: complementary_maximum_speed_limit_30_g1
+  exact_raw_labels:
+  - complementary--maximum-speed-limit-30--g1
+  sample_count: 132
+  dataset_counts:
+    mapillary: 132
+- id: warning_road_narrows_right_g2
+  exact_raw_labels:
+  - warning--road-narrows-right--g2
+  sample_count: 132
+  dataset_counts:
+    mapillary: 132
+- id: regulatory_turn_right_g3
+  exact_raw_labels:
+  - regulatory--turn-right--g3
+  sample_count: 131
+  dataset_counts:
+    mapillary: 131
+- id: complementary_maximum_speed_limit_35_g1
+  exact_raw_labels:
+  - complementary--maximum-speed-limit-35--g1
+  sample_count: 127
+  dataset_counts:
+    mapillary: 127
+- id: warning_junction_with_a_side_road_acute_left_g1
+  exact_raw_labels:
+  - warning--junction-with-a-side-road-acute-left--g1
+  sample_count: 126
+  dataset_counts:
+    mapillary: 126
+- id: donotenter
+  exact_raw_labels:
+  - doNotEnter
+  sample_count: 125
+  dataset_counts:
+    glare: 125
+- id: warning_road_narrows_left_g2
+  exact_raw_labels:
+  - warning--road-narrows-left--g2
+  sample_count: 125
+  dataset_counts:
+    mapillary: 125
+- id: warning_kangaloo_crossing_g1
+  exact_raw_labels:
+  - warning--kangaloo-crossing--g1
+  sample_count: 124
+  dataset_counts:
+    mapillary: 124
+- id: warning_turn_left_g1
+  exact_raw_labels:
+  - warning--turn-left--g1
+  sample_count: 124
+  dataset_counts:
+    mapillary: 124
+- id: complementary_maximum_speed_limit_20_g1
+  exact_raw_labels:
+  - complementary--maximum-speed-limit-20--g1
+  sample_count: 122
+  dataset_counts:
+    mapillary: 122
+- id: regulatory_no_u_turn_g3
+  exact_raw_labels:
+  - regulatory--no-u-turn--g3
+  sample_count: 122
+  dataset_counts:
+    mapillary: 122
+- id: complementary_both_directions_g1
+  exact_raw_labels:
+  - complementary--both-directions--g1
+  sample_count: 121
+  dataset_counts:
+    mapillary: 121
+- id: warning_uneven_road_g6
+  exact_raw_labels:
+  - warning--uneven-road--g6
+  sample_count: 121
+  dataset_counts:
+    mapillary: 121
+- id: warning_divided_highway_ends_g2
+  exact_raw_labels:
+  - warning--divided-highway-ends--g2
+  sample_count: 120
+  dataset_counts:
+    mapillary: 120
+- id: warning_double_curve_first_right_g2
+  exact_raw_labels:
+  - warning--double-curve-first-right--g2
+  sample_count: 120
+  dataset_counts:
+    mapillary: 120
+- id: regulatory_no_parking_or_no_stopping_g1
+  exact_raw_labels:
+  - regulatory--no-parking-or-no-stopping--g1
+  sample_count: 119
+  dataset_counts:
+    mapillary: 119
+- id: regulatory_no_vehicles_carrying_dangerous_goods_g1
+  exact_raw_labels:
+  - regulatory--no-vehicles-carrying-dangerous-goods--g1
+  sample_count: 118
+  dataset_counts:
+    mapillary: 118
+- id: regulatory_reversible_lanes_g2
+  exact_raw_labels:
+  - regulatory--reversible-lanes--g2
+  sample_count: 118
+  dataset_counts:
+    mapillary: 118
+- id: information_limited_access_road_g1
+  exact_raw_labels:
+  - information--limited-access-road--g1
+  sample_count: 116
+  dataset_counts:
+    mapillary: 116
+- id: regulatory_mopeds_and_bicycles_only_g1
+  exact_raw_labels:
+  - regulatory--mopeds-and-bicycles-only--g1
+  sample_count: 115
+  dataset_counts:
+    mapillary: 115
+- id: warning_road_narrows_g1
+  exact_raw_labels:
+  - warning--road-narrows--g1
+  sample_count: 115
+  dataset_counts:
+    mapillary: 115
+- id: warning_roundabout_g25
+  exact_raw_labels:
+  - warning--roundabout--g25
+  sample_count: 115
+  dataset_counts:
+    mapillary: 115
+- id: regulatory_end_of_speed_limit_zone_g1
+  exact_raw_labels:
+  - regulatory--end-of-speed-limit-zone--g1
+  sample_count: 114
+  dataset_counts:
+    mapillary: 114
+- id: complementary_trucks_g1
+  exact_raw_labels:
+  - complementary--trucks--g1
+  sample_count: 113
+  dataset_counts:
+    mapillary: 113
+- id: regulatory_no_right_turn_g2
+  exact_raw_labels:
+  - regulatory--no-right-turn--g2
+  sample_count: 113
+  dataset_counts:
+    mapillary: 113
+- id: regulatory_turn_left_g3
+  exact_raw_labels:
+  - regulatory--turn-left--g3
+  sample_count: 113
+  dataset_counts:
+    mapillary: 113
+- id: regulatory_priority_over_oncoming_vehicles_g1
+  exact_raw_labels:
+  - regulatory--priority-over-oncoming-vehicles--g1
+  sample_count: 112
+  dataset_counts:
+    mapillary: 112
+- id: warning_double_curve_first_left_g1
+  exact_raw_labels:
+  - warning--double-curve-first-left--g1
+  sample_count: 112
+  dataset_counts:
+    mapillary: 112
+- id: warning_railroad_intersection_g3
+  exact_raw_labels:
+  - warning--railroad-intersection--g3
+  sample_count: 112
+  dataset_counts:
+    mapillary: 112
+- id: regulatory_maximum_speed_limit_110_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-110--g1
+  sample_count: 111
+  dataset_counts:
+    mapillary: 111
+- id: regulatory_no_parking_or_no_stopping_g2
+  exact_raw_labels:
+  - regulatory--no-parking-or-no-stopping--g2
+  sample_count: 111
+  dataset_counts:
+    mapillary: 111
+- id: regulatory_maximum_speed_limit_120_g1
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-120--g1
+  sample_count: 108
+  dataset_counts:
+    mapillary: 108
+- id: complementary_chevron_left_g4
+  exact_raw_labels:
+  - complementary--chevron-left--g4
+  sample_count: 107
+  dataset_counts:
+    mapillary: 107
+- id: regulatory_lane_control_g1
+  exact_raw_labels:
+  - regulatory--lane-control--g1
+  sample_count: 107
+  dataset_counts:
+    mapillary: 107
+- id: regulatory_no_parking_or_no_stopping_g3
+  exact_raw_labels:
+  - regulatory--no-parking-or-no-stopping--g3
+  sample_count: 107
+  dataset_counts:
+    mapillary: 107
+- id: information_road_bump_g1
+  exact_raw_labels:
+  - information--road-bump--g1
+  sample_count: 106
+  dataset_counts:
+    mapillary: 106
+- id: regulatory_go_straight_or_turn_left_g3
+  exact_raw_labels:
+  - regulatory--go-straight-or-turn-left--g3
+  sample_count: 106
+  dataset_counts:
+    mapillary: 106
+- id: regulatory_no_turn_on_red_g1
+  exact_raw_labels:
+  - regulatory--no-turn-on-red--g1
+  sample_count: 103
+  dataset_counts:
+    mapillary: 103
+- id: speedlimit45
+  exact_raw_labels:
+  - speedLimit45
+  sample_count: 103
+  dataset_counts:
+    glare: 103
+- id: regulatory_maximum_speed_limit_45_g3
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-45--g3
+  sample_count: 102
+  dataset_counts:
+    mapillary: 102
+- id: regulatory_no_turn_on_red_g2
+  exact_raw_labels:
+  - regulatory--no-turn-on-red--g2
+  sample_count: 102
+  dataset_counts:
+    mapillary: 102
+- id: regulatory_radar_enforced_g1
+  exact_raw_labels:
+  - regulatory--radar-enforced--g1
+  sample_count: 102
+  dataset_counts:
+    mapillary: 102
+- id: warning_railroad_crossing_with_barriers_g1
+  exact_raw_labels:
+  - warning--railroad-crossing-with-barriers--g1
+  sample_count: 102
+  dataset_counts:
+    mapillary: 102
+- id: oneway
+  exact_raw_labels:
+  - oneWay
+  sample_count: 101
+  dataset_counts:
+    glare: 101
+- id: regulatory_maximum_speed_limit_30_g3
+  exact_raw_labels:
+  - regulatory--maximum-speed-limit-30--g3
+  sample_count: 101
+  dataset_counts:
+    mapillary: 101
+- id: regulatory_left_turn_yield_on_green_g1
+  exact_raw_labels:
+  - regulatory--left-turn-yield-on-green--g1
+  sample_count: 100
+  dataset_counts:
+    mapillary: 100
+- id: warning_trail_crossing_g2
+  exact_raw_labels:
+  - warning--trail-crossing--g2
+  sample_count: 100
+  dataset_counts:
+    mapillary: 100

@@ -4,7 +4,6 @@ Create the raw dataset folders first:
 
 ```bash
 mkdir -p data/training/raw/mapillary
-mkdir -p data/training/raw/lisa
 mkdir -p data/training/raw/glare
 ```
 
@@ -29,23 +28,6 @@ What to do:
 3. Accept any research-use or license terms if prompted.
 4. Download the traffic sign dataset if your account is granted access, or use the API or SDK workflow.
 
-## LISA
-
-- Official page: https://cvrr.ucsd.edu/lisa-traffic-signs-dataset
-
-Notes:
-
-- The official page describes LISA as an academic dataset.
-- The dataset includes images and CSV annotations.
-- The underlying UCSD host looked unreliable when checked from this environment, so the direct zip URL could not be verified.
-
-What to do:
-
-1. Open the official LISA page in a browser.
-2. Follow the UCSD dataset link from there.
-3. Download the images and CSV annotations manually.
-4. If the host is flaky, use the contact information on the CVRRxLISA site.
-
 ## GLARE
 
 - Official repo: https://github.com/NicholasCG/GLARE_Dataset
@@ -69,8 +51,6 @@ If possible, arrange the files like this:
 
 - `data/training/raw/mapillary/images`
 - `data/training/raw/mapillary/annotations`
-- `data/training/raw/lisa/images`
-- `data/training/raw/lisa/annotations`
 - `data/training/raw/glare/images`
 - `data/training/raw/glare/annotations`
 
@@ -94,7 +74,6 @@ This will:
 
 - `Mapillary` is the least straightforward right now because access appears gated by login, license, or API workflow.
 - `GLARE` is the easiest to obtain directly.
-- `LISA` should be manual-downloadable, but the direct host was not reliably accessible during verification.
 
 ## Sources
 
@@ -103,6 +82,5 @@ This will:
 - Mapillary API help: https://help.mapillary.com/hc/en-us/articles/360010234680-Accessing-imagery-and-data-through-the-Mapillary-API
 - Mapillary object detections help: https://help.mapillary.com/hc/en-us/articles/115000967191-Object-detections
 - Mapillary SDK: https://github.com/mapillary/mapillary-python-sdk
-- LISA: https://cvrr.ucsd.edu/lisa-traffic-signs-dataset
 - GLARE repo: https://github.com/NicholasCG/GLARE_Dataset
 - GLARE paper: https://arxiv.org/abs/2209.08716

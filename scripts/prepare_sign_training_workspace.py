@@ -68,15 +68,17 @@ def inventory_dataset(repo_root: Path, dataset: dict[str, Any]) -> dict[str, Any
 
 
 def build_outputs(plan: dict[str, Any], repo_root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    targets = plan["targets"]
     inventory = {
         "version": plan.get("version", 1),
-        "strategy": plan["targets"]["strategy"],
+        "strategy": targets["strategy"],
         "datasets": [inventory_dataset(repo_root, dataset) for dataset in plan.get("datasets", [])],
     }
     label_schema = {
         "version": plan.get("version", 1),
-        "strategy": plan["targets"]["strategy"],
-        "broad_categories": plan["targets"]["broad_categories"],
+        "strategy": targets["strategy"],
+        "detector_categories": targets.get("detector_categories", ["sign"]),
+        "broad_categories": targets["broad_categories"],
     }
     return inventory, label_schema
 

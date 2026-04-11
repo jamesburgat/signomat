@@ -26,6 +26,8 @@ BROAD_CATEGORIES = (
     "unknown_sign",
 )
 
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+
 
 def load_plan(path: Path) -> dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -71,6 +73,42 @@ def relpath_or_str(path: Path, base: Path) -> str:
         return str(path)
 
 
+def build_image_indexes(image_root: Path) -> tuple[dict[str, Path], dict[str, Path]]:
+    image_name_index: dict[str, Path] = {}
+    image_stem_index: dict[str, Path] = {}
+    if not image_root.exists():
+        return image_name_index, image_stem_index
+    for image_path in sorted(image_root.rglob("*")):
+        if not image_path.is_file() or image_path.suffix.lower() not in IMAGE_SUFFIXES:
+            continue
+        image_name_index.setdefault(image_path.name, image_path)
+        image_stem_index.setdefault(image_path.stem, image_path)
+    return image_name_index, image_stem_index
+
+
+def resolve_image_path(
+    file_name: str | None,
+    image_root: Path,
+    image_name_index: dict[str, Path],
+    image_stem_index: dict[str, Path],
+) -> Path | None:
+    if not file_name:
+        return None
+    candidate = Path(file_name)
+    if candidate.is_absolute():
+        return candidate
+    direct_path = image_root / candidate
+    if direct_path.exists():
+        return direct_path
+    indexed_path = image_name_index.get(candidate.name)
+    if indexed_path is not None:
+        return indexed_path
+    stem_path = image_stem_index.get(candidate.stem)
+    if stem_path is not None:
+        return stem_path
+    return direct_path
+
+
 def coco_bbox_to_xyxy(bbox: list[Any]) -> list[float] | None:
     if len(bbox) != 4:
         return None
@@ -82,10 +120,15 @@ def _file_name_from_image(image: dict[str, Any]) -> str | None:
     return image.get("file_name") or image.get("path") or image.get("name")
 
 
-def parse_coco_annotation_file(annotation_path: Path, dataset_id: str, image_root: Path, repo_root: Path) -> list[dict[str, Any]]:
-    payload = json.loads(annotation_path.read_text(encoding="utf-8"))
-    if not all(key in payload for key in ("images", "annotations", "categories")):
-        return []
+def parse_coco_annotation_payload(
+    payload: dict[str, Any],
+    annotation_path: Path,
+    dataset_id: str,
+    image_root: Path,
+    repo_root: Path,
+    image_name_index: dict[str, Path],
+    image_stem_index: dict[str, Path],
+) -> list[dict[str, Any]]:
     categories = {item["id"]: item.get("name", str(item["id"])) for item in payload.get("categories", [])}
     images = {item["id"]: item for item in payload.get("images", [])}
     records: list[dict[str, Any]] = []
@@ -99,7 +142,9 @@ def parse_coco_annotation_file(annotation_path: Path, dataset_id: str, image_roo
         file_name = _file_name_from_image(image)
         if not file_name:
             continue
-        image_path = image_root / file_name
+        image_path = resolve_image_path(file_name, image_root, image_name_index, image_stem_index)
+        if image_path is None:
+            continue
         raw_label = categories.get(annotation.get("category_id"), "unknown_sign")
         records.append(
             {
@@ -122,13 +167,20 @@ def csv_label_column(fieldnames: list[str]) -> str | None:
 
 
 def csv_filename_column(fieldnames: list[str]) -> str | None:
-    for candidate in ("filename", "file_name", "image", "image_path"):
+    for candidate in ("Filename", "filename", "file_name", "image", "image_path"):
         if candidate in fieldnames:
             return candidate
     return None
 
 
-def parse_lisa_csv_annotation_file(annotation_path: Path, dataset_id: str, image_root: Path, repo_root: Path) -> list[dict[str, Any]]:
+def parse_csv_box_annotation_file(
+    annotation_path: Path,
+    dataset_id: str,
+    image_root: Path,
+    repo_root: Path,
+    image_name_index: dict[str, Path],
+    image_stem_index: dict[str, Path],
+) -> list[dict[str, Any]]:
     with annotation_path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames is None:
@@ -143,6 +195,9 @@ def parse_lisa_csv_annotation_file(annotation_path: Path, dataset_id: str, image
             raw_label = row.get(label_column)
             if not file_name or not raw_label:
                 continue
+            image_path = resolve_image_path(file_name, image_root, image_name_index, image_stem_index)
+            if image_path is None:
+                continue
             x1 = row.get("Upper left corner X") or row.get("x1") or row.get("xmin")
             y1 = row.get("Upper left corner Y") or row.get("y1") or row.get("ymin")
             x2 = row.get("Lower right corner X") or row.get("x2") or row.get("xmax")
@@ -154,21 +209,31 @@ def parse_lisa_csv_annotation_file(annotation_path: Path, dataset_id: str, image
                 {
                     "dataset_id": dataset_id,
                     "source_annotation": relpath_or_str(annotation_path, repo_root),
-                    "image_path": relpath_or_str(image_root / file_name, repo_root),
+                    "image_path": relpath_or_str(image_path, repo_root),
                     "raw_label": raw_label,
                     "broad_category": map_to_broad_category(raw_label),
                     "bbox_xyxy": bbox,
                 }
-            )
+        )
         return records
 
 
-def parse_pascal_voc_annotation_file(annotation_path: Path, dataset_id: str, image_root: Path, repo_root: Path) -> list[dict[str, Any]]:
+def parse_pascal_voc_annotation_file(
+    annotation_path: Path,
+    dataset_id: str,
+    image_root: Path,
+    repo_root: Path,
+    image_name_index: dict[str, Path],
+    image_stem_index: dict[str, Path],
+) -> list[dict[str, Any]]:
     root = ET.fromstring(annotation_path.read_text(encoding="utf-8"))
     filename_node = root.find("filename")
     if filename_node is None or not filename_node.text:
         return []
     file_name = filename_node.text.strip()
+    image_path = resolve_image_path(file_name, image_root, image_name_index, image_stem_index)
+    if image_path is None:
+        return []
     records: list[dict[str, Any]] = []
     for obj in root.findall("object"):
         name_node = obj.find("name")
@@ -187,7 +252,7 @@ def parse_pascal_voc_annotation_file(annotation_path: Path, dataset_id: str, ima
             {
                 "dataset_id": dataset_id,
                 "source_annotation": relpath_or_str(annotation_path, repo_root),
-                "image_path": relpath_or_str(image_root / file_name, repo_root),
+                "image_path": relpath_or_str(image_path, repo_root),
                 "raw_label": raw_label,
                 "broad_category": map_to_broad_category(raw_label),
                 "bbox_xyxy": bbox,
@@ -196,12 +261,96 @@ def parse_pascal_voc_annotation_file(annotation_path: Path, dataset_id: str, ima
     return records
 
 
+def parse_mtsd_annotation_payload(
+    payload: dict[str, Any],
+    annotation_path: Path,
+    dataset_id: str,
+    image_root: Path,
+    repo_root: Path,
+    image_name_index: dict[str, Path],
+    image_stem_index: dict[str, Path],
+) -> list[dict[str, Any]]:
+    image_path = image_stem_index.get(annotation_path.stem)
+    if image_path is None:
+        image_path = resolve_image_path(f"{annotation_path.stem}.jpg", image_root, image_name_index, image_stem_index)
+    if image_path is None:
+        image_path = image_root / f"{annotation_path.stem}.jpg"
+
+    records: list[dict[str, Any]] = []
+    for obj in payload.get("objects", []):
+        if not isinstance(obj, dict):
+            continue
+        properties = obj.get("properties") or {}
+        if isinstance(properties, dict) and properties.get("dummy"):
+            continue
+        raw_label = str(obj.get("label") or "").strip()
+        if not raw_label:
+            continue
+        bbox_payload = obj.get("bbox") or {}
+        xmin = bbox_payload.get("xmin")
+        ymin = bbox_payload.get("ymin")
+        xmax = bbox_payload.get("xmax")
+        ymax = bbox_payload.get("ymax")
+        bbox = None
+        if all(value is not None for value in (xmin, ymin, xmax, ymax)):
+            bbox = [float(xmin), float(ymin), float(xmax), float(ymax)]
+        records.append(
+            {
+                "dataset_id": dataset_id,
+                "source_annotation": relpath_or_str(annotation_path, repo_root),
+                "image_path": relpath_or_str(image_path, repo_root),
+                "raw_label": raw_label,
+                "broad_category": map_to_broad_category(raw_label),
+                "bbox_xyxy": bbox,
+            }
+        )
+    return records
+
+
+def parse_json_annotation_file(
+    annotation_path: Path,
+    dataset_id: str,
+    image_root: Path,
+    repo_root: Path,
+    image_name_index: dict[str, Path],
+    image_stem_index: dict[str, Path],
+) -> tuple[list[dict[str, Any]], str | None]:
+    payload = json.loads(annotation_path.read_text(encoding="utf-8"))
+    if all(key in payload for key in ("images", "annotations", "categories")):
+        return (
+            parse_coco_annotation_payload(
+                payload,
+                annotation_path,
+                dataset_id,
+                image_root,
+                repo_root,
+                image_name_index,
+                image_stem_index,
+            ),
+            "coco_json",
+        )
+    if isinstance(payload, dict) and isinstance(payload.get("objects"), list):
+        return (
+            parse_mtsd_annotation_payload(
+                payload,
+                annotation_path,
+                dataset_id,
+                image_root,
+                repo_root,
+                image_name_index,
+                image_stem_index,
+            ),
+            "mtsd_json",
+        )
+    return [], None
+
+
 def detect_annotation_parser(annotation_path: Path) -> str | None:
     suffix = annotation_path.suffix.lower()
     if suffix == ".xml":
         return "voc_xml"
     if suffix == ".csv":
-        return "lisa_csv"
+        return "csv_boxes"
     if suffix == ".json":
         return "coco_json"
     return None
@@ -211,6 +360,7 @@ def normalize_dataset(repo_root: Path, dataset: dict[str, Any]) -> tuple[list[di
     dataset_root = repo_root / dataset["local_root"]
     image_root = dataset_root / dataset.get("expected", {}).get("images_dir", "images")
     annotation_root = dataset_root / dataset.get("expected", {}).get("annotations_dir", "annotations")
+    image_name_index, image_stem_index = build_image_indexes(image_root)
     records: list[dict[str, Any]] = []
     parser_counts: Counter[str] = Counter()
 
@@ -222,11 +372,34 @@ def normalize_dataset(repo_root: Path, dataset: dict[str, Any]) -> tuple[list[di
             if parser is None:
                 continue
             if parser == "voc_xml":
-                parsed = parse_pascal_voc_annotation_file(annotation_path, dataset["id"], image_root, repo_root)
-            elif parser == "lisa_csv":
-                parsed = parse_lisa_csv_annotation_file(annotation_path, dataset["id"], image_root, repo_root)
+                parsed = parse_pascal_voc_annotation_file(
+                    annotation_path,
+                    dataset["id"],
+                    image_root,
+                    repo_root,
+                    image_name_index,
+                    image_stem_index,
+                )
+            elif parser == "csv_boxes":
+                parsed = parse_csv_box_annotation_file(
+                    annotation_path,
+                    dataset["id"],
+                    image_root,
+                    repo_root,
+                    image_name_index,
+                    image_stem_index,
+                )
             else:
-                parsed = parse_coco_annotation_file(annotation_path, dataset["id"], image_root, repo_root)
+                parsed, parser = parse_json_annotation_file(
+                    annotation_path,
+                    dataset["id"],
+                    image_root,
+                    repo_root,
+                    image_name_index,
+                    image_stem_index,
+                )
+                if parser is None:
+                    continue
             if parsed:
                 parser_counts[parser] += 1
                 records.extend(parsed)

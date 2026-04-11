@@ -6,7 +6,9 @@ workspace:
   label_schema_output: data/training/manifest/label_schema.json
 
 targets:
-  strategy: broad_first_detection_then_sort
+  strategy: detect_any_sign_then_sort
+  detector_categories:
+    - sign
   broad_categories:
     - stop
     - yield
@@ -33,18 +35,6 @@ datasets:
     notes:
       - Large and diverse street-level sign coverage
       - Best base dataset for broad sign proposal recall
-
-  - id: lisa
-    name: LISA Traffic Sign Dataset
-    role: primary_us_signs
-    local_root: data/training/raw/lisa
-    expected:
-      images_dir: images
-      annotations_dir: annotations
-    source_url: https://cvrr.ucsd.edu/LISA/lisa-traffic-sign-dataset.html
-    notes:
-      - US-focused sign classes
-      - Useful for stop, speed, and other US roadside conventions
 
   - id: glare
     name: GLARE
