@@ -43,17 +43,39 @@ struct SessionStatePayload: Codable {
     }
 }
 
+struct ClassifiedSignPayload: Codable, Identifiable, Equatable {
+    var eventID: String?
+    var label: String
+    var category: String?
+    var timestamp: String?
+    var confidence: Double?
+
+    var id: String {
+        eventID ?? "\(label)-\(timestamp ?? "unknown")"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case eventID = "id"
+        case label
+        case category
+        case timestamp = "ts"
+        case confidence = "conf"
+    }
+}
+
 struct DetectionSummaryPayload: Codable {
     var det: Int
     var last: String?
     var lastTS: String?
     var cats: [String: Int]
+    var recent: [ClassifiedSignPayload]
 
     enum CodingKeys: String, CodingKey {
         case det
         case last
         case lastTS = "last_ts"
         case cats
+        case recent
     }
 
     init(from decoder: any Decoder) throws {
@@ -62,6 +84,7 @@ struct DetectionSummaryPayload: Codable {
         last = try container.decodeIfPresent(String.self, forKey: .last)
         lastTS = try container.decodeIfPresent(String.self, forKey: .lastTS)
         cats = try container.decodeIfPresent([String: Int].self, forKey: .cats) ?? [:]
+        recent = try container.decodeIfPresent([ClassifiedSignPayload].self, forKey: .recent) ?? []
     }
 }
 
@@ -101,6 +124,7 @@ struct LiveStatus {
     var last: String?
     var lastTS: String?
     var signCategories: [String: Int] = [:]
+    var recentSigns: [ClassifiedSignPayload] = []
     var queue = 0
     var gps = "idle"
     var gpsFix = false
@@ -135,6 +159,7 @@ struct LiveStatus {
         last = payload.last
         lastTS = payload.lastTS
         signCategories = payload.cats
+        recentSigns = payload.recent
     }
 
     mutating func merge(_ payload: UploadSummaryPayload) {
@@ -175,6 +200,8 @@ enum SignomatCommand: String, CaseIterable, Identifiable {
     case stopTrip = "stop_trip"
     case startRecording = "start_recording"
     case stopRecording = "stop_recording"
+    case enableInference = "enable_inference"
+    case disableInference = "disable_inference"
     case saveDiagnosticSnapshot = "save_diagnostic_snapshot"
 
     var id: String { rawValue }
@@ -185,6 +212,8 @@ enum SignomatCommand: String, CaseIterable, Identifiable {
         case .stopTrip: return "Stop Trip"
         case .startRecording: return "Start Recording"
         case .stopRecording: return "Stop Recording"
+        case .enableInference: return "Enable Inference"
+        case .disableInference: return "Disable Inference"
         case .saveDiagnosticSnapshot: return "Save Diagnostic Snapshot"
         }
     }

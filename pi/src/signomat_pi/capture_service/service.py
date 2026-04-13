@@ -187,6 +187,13 @@ class CaptureService:
             duration_sec,
         )
         self.database.enqueue_upload(
+            "video_media",
+            self.storage.relative_path(file_path),
+            "video_segments",
+            self.active_segment.video_segment_id,
+            {"trip_id": self.active_trip_id, "type": "video_media"},
+        )
+        self.database.enqueue_upload(
             "video_segment",
             self.storage.relative_path(file_path),
             "video_segments",

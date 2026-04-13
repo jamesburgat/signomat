@@ -254,6 +254,32 @@ class Database:
         row = self.query_one("SELECT * FROM detections WHERE event_id=?", (event_id,))
         return dict(row) if row else None
 
+    def detections_for_trip(self, trip_id: str) -> list[dict[str, Any]]:
+        return [
+            dict(row)
+            for row in self.query_all(
+                "SELECT * FROM detections WHERE trip_id=? ORDER BY timestamp_utc ASC",
+                (trip_id,),
+            )
+        ]
+
+    def recent_detections_for_trip(self, trip_id: str, limit: int = 5) -> list[dict[str, Any]]:
+        rows = self.query_all(
+            """
+            SELECT
+              event_id, timestamp_utc, category_id, category_label, specific_label,
+              raw_classifier_label, classifier_confidence
+            FROM detections
+            WHERE trip_id=?
+              AND COALESCE(category_label, '') != 'unknown_sign'
+              AND COALESCE(raw_classifier_label, '') != 'unknown_sign'
+            ORDER BY timestamp_utc DESC
+            LIMIT ?
+            """,
+            (trip_id, limit),
+        )
+        return [dict(row) for row in rows]
+
     def recent_gps_points(self, limit: int = 50) -> list[dict[str, Any]]:
         return [dict(row) for row in self.query_all("SELECT * FROM gps_points ORDER BY timestamp_utc DESC LIMIT ?", (limit,))]
 
@@ -300,8 +326,8 @@ class Database:
         return summary
 
     def pending_upload_items(self, limit: int = 100, item_types: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
-        sql = "SELECT * FROM upload_queue WHERE state='pending'"
-        params: list[Any] = []
+        sql = "SELECT * FROM upload_queue WHERE state='pending' AND (next_attempt_utc IS NULL OR next_attempt_utc <= ?)"
+        params: list[Any] = [utc_now_text()]
         if item_types:
             placeholders = ", ".join(["?"] * len(item_types))
             sql += f" AND item_type IN ({placeholders})"
@@ -351,6 +377,34 @@ class Database:
             f"UPDATE {table_name} SET upload_state=? WHERE {id_column} IN ({placeholders})",
             (upload_state, *ids),
         )
+
+    def set_related_upload_state(self, table_name: str, related_id: str, upload_state: str) -> None:
+        if table_name == "detections":
+            id_column = "event_id"
+        elif table_name == "video_segments":
+            id_column = "video_segment_id"
+        else:
+            return
+        self.execute(
+            f"UPDATE {table_name} SET upload_state=? WHERE {id_column}=?",
+            (upload_state, related_id),
+        )
+
+    def count_unsynced_related_uploads(
+        self,
+        related_table: str,
+        related_id: str,
+        *,
+        item_types: tuple[str, ...] | None = None,
+    ) -> int:
+        sql = "SELECT COUNT(*) AS count FROM upload_queue WHERE related_table=? AND related_id=? AND state != 'synced'"
+        params: list[Any] = [related_table, related_id]
+        if item_types:
+            placeholders = ", ".join(["?"] * len(item_types))
+            sql += f" AND item_type IN ({placeholders})"
+            params.extend(item_types)
+        row = self.query_one(sql, tuple(params))
+        return int(row["count"]) if row else 0
 
     def trip_records(self, trip_ids: list[str]) -> list[dict[str, Any]]:
         if not trip_ids:

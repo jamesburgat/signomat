@@ -10,9 +10,12 @@ from urllib import request
 import uvicorn
 
 from signomat_pi.common.config import load_config, repo_root
+from signomat_pi.common.database import Database
 from signomat_pi.common.logging import configure_logging
 from signomat_pi.common.runtime import SignomatRuntime
+from signomat_pi.common.storage import StorageManager
 from signomat_pi.gps_service.diagnostics import diagnose_gps
+from signomat_pi.inference_service.replay import ReplayEvaluator
 from signomat_pi.local_api.app import create_app
 
 
@@ -91,8 +94,18 @@ def prune_old_media(args) -> int:
 
 
 def replay_trip(args) -> int:
-    print(json.dumps({"ok": True, "message": "trip replay scaffolding reserved for Phase 5", "trip_id": args.trip_id}, indent=2))
-    return 0
+    config = load_config(args.config)
+    storage = StorageManager(config)
+    storage.initialize()
+    database = Database(storage.db_path, repo_root() / "pi/migrations")
+    database.apply_migrations()
+    evaluator = ReplayEvaluator(config, storage, database)
+    try:
+        response = evaluator.evaluate_trip(args.trip_id, export=not args.no_export)
+    finally:
+        database.close()
+    print(json.dumps(response, indent=2))
+    return 0 if response.get("ok") else 1
 
 
 def force_sync(args) -> int:
@@ -143,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
 
     replay_parser = subparsers.add_parser("replay-trip")
     replay_parser.add_argument("trip_id")
+    replay_parser.add_argument("--no-export", action="store_true")
     replay_parser.set_defaults(func=replay_trip)
 
     force_sync_parser = subparsers.add_parser("force-sync")
