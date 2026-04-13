@@ -21,6 +21,17 @@ def test_lcd_shows_stable_trip_count(monkeypatch):
     assert display._steady_lines[1].strip() == "Signs 004"
 
 
+def test_lcd_flashes_classified_sign(monkeypatch):
+    monkeypatch.setenv("SIGNOMAT_LCD_DRIVER", "off")
+    display = lcd_module.LCDStatusDisplay()
+
+    monkeypatch.setattr(lcd_module.time, "monotonic", lambda: 0.0)
+    display.show_classified_event("stop")
+
+    assert display._transient_lines[0].strip() == "Classified sign"
+    assert display._transient_lines[1].strip() == "stop"
+
+
 def test_lcd_shows_phone_wifi_and_gps_feedback(monkeypatch):
     monkeypatch.setenv("SIGNOMAT_LCD_DRIVER", "off")
     display = lcd_module.LCDStatusDisplay()

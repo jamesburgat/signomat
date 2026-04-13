@@ -36,6 +36,7 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
         assert ble["7b1e1002-5d1f-4aa0-9a7d-6f5c0b6c1000"]["trip"] is True
         assert "gps" in ble["7b1e1007-5d1f-4aa0-9a7d-6f5c0b6c1000"]
         assert "cats" in ble["7b1e1004-5d1f-4aa0-9a7d-6f5c0b6c1000"]
+        assert "recent" in ble["7b1e1004-5d1f-4aa0-9a7d-6f5c0b6c1000"]
 
         detections = client.get("/detections/recent")
         assert detections.status_code == 200

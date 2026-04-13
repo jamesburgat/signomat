@@ -80,6 +80,26 @@ class InferenceService:
             return DetectorLabelClassifier()
         return HeuristicSignClassifier()
 
+    def model_versions(self) -> list[tuple[str, str, str]]:
+        detector_label = self._detector_version_label()
+        classifier_label = self._classifier_version_label()
+        return [
+            ("candidate_detector", detector_label[0], detector_label[1]),
+            ("classifier", classifier_label[0], classifier_label[1]),
+        ]
+
+    def _detector_version_label(self) -> tuple[str, str]:
+        if isinstance(self.detector, UltralyticsSignDetector):
+            return (f"yolo:{Path(self.config.inference.detector_model_path).name}", "local-model")
+        return ("heuristic-color-shape-v1", "local-fallback")
+
+    def _classifier_version_label(self) -> tuple[str, str]:
+        if isinstance(self.classifier, UltralyticsCropClassifier):
+            return (f"yolo:{Path(self.config.inference.classifier_model_path).name}", "local-model")
+        if isinstance(self.classifier, DetectorLabelClassifier):
+            return ("detector-label-pass-through", "config")
+        return ("heuristic-sign-classifier-v1", "local-fallback")
+
     def start(self) -> None:
         self.running.set()
         self.thread = threading.Thread(target=self._loop, name="inference-service", daemon=True)

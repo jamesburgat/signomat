@@ -59,6 +59,16 @@ def detection_summary_payload(status: dict[str, Any]) -> dict[str, Any]:
         "last": status["last_detection_label"],
         "last_ts": status["last_detection_timestamp"],
         "cats": {item["category_label"]: item["count"] for item in status.get("trip_sign_categories", [])},
+        "recent": [
+            {
+                "id": item["event_id"],
+                "label": item["specific_label"] or item["category_label"],
+                "category": item["category_label"],
+                "ts": item["timestamp_utc"],
+                "conf": item["classifier_confidence"],
+            }
+            for item in status.get("trip_recent_signs", [])
+        ],
     }
 
 

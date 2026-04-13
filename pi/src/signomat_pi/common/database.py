@@ -263,6 +263,23 @@ class Database:
             )
         ]
 
+    def recent_detections_for_trip(self, trip_id: str, limit: int = 5) -> list[dict[str, Any]]:
+        rows = self.query_all(
+            """
+            SELECT
+              event_id, timestamp_utc, category_id, category_label, specific_label,
+              raw_classifier_label, classifier_confidence
+            FROM detections
+            WHERE trip_id=?
+              AND COALESCE(category_label, '') != 'unknown_sign'
+              AND COALESCE(raw_classifier_label, '') != 'unknown_sign'
+            ORDER BY timestamp_utc DESC
+            LIMIT ?
+            """,
+            (trip_id, limit),
+        )
+        return [dict(row) for row in rows]
+
     def recent_gps_points(self, limit: int = 50) -> list[dict[str, Any]]:
         return [dict(row) for row in self.query_all("SELECT * FROM gps_points ORDER BY timestamp_utc DESC LIMIT ?", (limit,))]
 

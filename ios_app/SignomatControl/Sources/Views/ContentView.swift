@@ -109,23 +109,59 @@ struct ContentView: View {
     }
 
     private var categoryCard: some View {
+        let status = viewModel.manager.status
         let categories = viewModel.manager.status.signCategories.sorted { lhs, rhs in
             if lhs.value == rhs.value {
                 return lhs.key < rhs.key
             }
             return lhs.value > rhs.value
         }
+        let recentSigns = status.recentSigns
 
         return VStack(alignment: .leading, spacing: 12) {
-            Text("Signs This Trip")
-                .font(.headline)
-            if categories.isEmpty {
-                Text("No sign categories logged yet for this trip.")
+            HStack {
+                Text("Signs This Trip")
+                    .font(.headline)
+                Spacer()
+                Text("\(status.det)")
+                    .font(.headline)
+            }
+            if recentSigns.isEmpty {
+                Text("No classified signs logged yet for this trip.")
                     .foregroundStyle(.secondary)
             } else {
+                Text("Recent Classified Signs")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                ForEach(recentSigns) { sign in
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(displaySignLabel(sign.label))
+                                .fontWeight(.semibold)
+                            if let timestamp = sign.timestamp {
+                                Text(timestamp)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        if let confidence = sign.confidence {
+                            Text(String(format: "%.0f%%", confidence * 100))
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            if !categories.isEmpty {
+                Divider()
+                Text("Category Totals")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
                 ForEach(categories, id: \.key) { entry in
                     HStack {
-                        Text(entry.key.replacingOccurrences(of: "_", with: " ").capitalized)
+                        Text(displaySignLabel(entry.key))
                         Spacer()
                         Text("\(entry.value)")
                             .fontWeight(.semibold)
@@ -252,6 +288,10 @@ struct ContentView: View {
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.trailing)
         }
+    }
+
+    private func displaySignLabel(_ label: String) -> String {
+        label.replacingOccurrences(of: "_", with: " ").capitalized
     }
 
     private func recordingBadge(isRecording: Bool) -> some View {

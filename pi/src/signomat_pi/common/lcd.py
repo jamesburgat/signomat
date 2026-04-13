@@ -129,6 +129,9 @@ class LCDStatusDisplay:
     def show_saved_event(self, label: str):
         self.show_message("Sign saved", label, transient_seconds=2, force=True)
 
+    def show_classified_event(self, label: str):
+        self.show_message("Classified sign", label, transient_seconds=2, force=True)
+
     def _status_flag(self, prefix: str, active: bool) -> str:
         return f"{prefix}{'+' if active else '-'}"
 

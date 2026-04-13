@@ -68,8 +68,7 @@ class SignomatRuntime:
             LOGGER.warning("LCD unavailable: %s", self.lcd.error)
         self.database.replace_model_versions(
             [
-                ("candidate_detector", "heuristic-color-shape-v1", "local"),
-                ("classifier", "heuristic-sign-classifier-v1", "local"),
+                *self.inference_service.model_versions(),
                 ("taxonomy", f"taxonomy-v{self.inference_service.taxonomy.version}", "config"),
             ]
         )
@@ -211,9 +210,15 @@ class SignomatRuntime:
             "timestamp_utc": payload["timestamp_utc"],
         }
         label = payload["specific_label"] or payload["category_label"]
-        self.lcd.show_saved_event(label)
+        if self._is_classified_detection(payload):
+            self.lcd.show_classified_event(label)
         self.refresh_lcd()
         self.ble_service.refresh()
+
+    def _is_classified_detection(self, payload: dict) -> bool:
+        label = payload.get("specific_label") or payload.get("category_label")
+        raw_label = payload.get("raw_classifier_label")
+        return bool(label and label != "unknown_sign" and raw_label != "unknown_sign")
 
     def diagnostic_snapshot(self) -> dict:
         base_trip = self.current_trip_id or "no_trip"
@@ -317,11 +322,12 @@ class SignomatRuntime:
     def status_snapshot(self) -> dict:
         storage = self.storage.storage_status()
         sync = self.sync_service.status()
-        sign_categories = (
-            self.database.detection_category_counts_for_trip(self.current_trip_id)
-            if self.current_trip_id
-            else []
-        )
+        if self.current_trip_id:
+            sign_categories = self.database.detection_category_counts_for_trip(self.current_trip_id)
+            recent_signs = self.database.recent_detections_for_trip(self.current_trip_id)
+        else:
+            sign_categories = []
+            recent_signs = []
         return {
             "trip_active": self.current_trip_id is not None,
             "recording_active": self.recording_active,
@@ -331,6 +337,7 @@ class SignomatRuntime:
             "last_detection_label": (self.last_detection["specific_label"] or self.last_detection["category_label"]) if self.last_detection else None,
             "last_detection_timestamp": self.last_detection["timestamp_utc"] if self.last_detection else None,
             "trip_sign_categories": sign_categories,
+            "trip_recent_signs": recent_signs,
             "storage": storage,
             "upload_queue_size": sync.get("total", 0),
             "sync_status": sync["last_result"],
