@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -40,15 +41,15 @@ def inventory_dataset(repo_root: Path, dataset: dict[str, Any]) -> dict[str, Any
     suffix_counter: Counter[str] = Counter()
 
     if root.exists():
-        for path in root.rglob("*"):
-            if not path.is_file():
-                continue
-            suffix = path.suffix.lower()
-            suffix_counter[suffix] += 1
-            if suffix in image_exts:
-                image_count += 1
-            if suffix in annotation_exts:
-                annotation_count += 1
+        for dirpath, _, filenames in os.walk(root, followlinks=True):
+            for file_name in filenames:
+                path = Path(dirpath) / file_name
+                suffix = path.suffix.lower()
+                suffix_counter[suffix] += 1
+                if suffix in image_exts:
+                    image_count += 1
+                if suffix in annotation_exts:
+                    annotation_count += 1
 
     expected = dataset.get("expected", {})
     return {

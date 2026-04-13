@@ -174,6 +174,100 @@ def test_normalize_dataset_supports_mtsd_json(tmp_path):
     assert records[0]["image_path"] == "data/training/raw/mapillary/images/part_01/abc123.jpg"
 
 
+def test_normalize_dataset_supports_bdd100k_detection_json(tmp_path):
+    repo_root = tmp_path
+
+    dataset_root = repo_root / "data/training/raw/bdd100k"
+    images_dir = dataset_root / "images" / "100k" / "train"
+    annotations_dir = dataset_root / "annotations"
+    images_dir.mkdir(parents=True)
+    annotations_dir.mkdir(parents=True)
+    (images_dir / "bdd_frame.jpg").write_bytes(b"")
+    (annotations_dir / "det_train.json").write_text(
+        json.dumps(
+            [
+                {
+                    "name": "bdd_frame.jpg",
+                    "labels": [
+                        {
+                            "category": "traffic sign",
+                            "box2d": {"x1": 10.5, "y1": 20.0, "x2": 30.25, "y2": 40.75},
+                        },
+                        {
+                            "category": "car",
+                            "box2d": {"x1": 1, "y1": 2, "x2": 3, "y2": 4},
+                        },
+                    ],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    dataset = {
+        "id": "bdd100k",
+        "name": "BDD100K Detection",
+        "local_root": "data/training/raw/bdd100k",
+        "expected": {"images_dir": "images", "annotations_dir": "annotations"},
+    }
+    records, summary = MODULE.normalize_dataset(repo_root, dataset)
+
+    assert summary["record_count"] == 1
+    assert summary["parser_counts"]["bdd100k_json"] == 1
+    assert records[0]["raw_label"] == "traffic sign"
+    assert records[0]["broad_category"] == "other_sign_like"
+    assert records[0]["bbox_xyxy"] == [10.5, 20.0, 30.25, 40.75]
+    assert records[0]["image_path"] == "data/training/raw/bdd100k/images/100k/train/bdd_frame.jpg"
+
+
+def test_normalize_dataset_supports_bdd100k_per_image_frames_json(tmp_path):
+    repo_root = tmp_path
+
+    dataset_root = repo_root / "data/training/raw/bdd100k"
+    images_dir = dataset_root / "images" / "100k" / "train"
+    annotations_dir = dataset_root / "annotations" / "train"
+    images_dir.mkdir(parents=True)
+    annotations_dir.mkdir(parents=True)
+    (images_dir / "bdd_frame_2.jpg").write_bytes(b"")
+    (annotations_dir / "bdd_frame_2.json").write_text(
+        json.dumps(
+            {
+                "name": "bdd_frame_2",
+                "frames": [
+                    {
+                        "timestamp": 10000,
+                        "objects": [
+                            {
+                                "category": "traffic sign",
+                                "box2d": {"x1": 11, "y1": 22, "x2": 33, "y2": 44},
+                            },
+                            {
+                                "category": "traffic light",
+                                "box2d": {"x1": 1, "y1": 2, "x2": 3, "y2": 4},
+                            },
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dataset = {
+        "id": "bdd100k",
+        "name": "BDD100K Detection",
+        "local_root": "data/training/raw/bdd100k",
+        "expected": {"images_dir": "images", "annotations_dir": "annotations"},
+    }
+    records, summary = MODULE.normalize_dataset(repo_root, dataset)
+
+    assert summary["record_count"] == 1
+    assert summary["parser_counts"]["bdd100k_json"] == 1
+    assert records[0]["raw_label"] == "traffic sign"
+    assert records[0]["bbox_xyxy"] == [11.0, 22.0, 33.0, 44.0]
+    assert records[0]["image_path"] == "data/training/raw/bdd100k/images/100k/train/bdd_frame_2.jpg"
+
+
 def test_normalize_dataset_resolves_nested_csv_images(tmp_path):
     repo_root = tmp_path
 

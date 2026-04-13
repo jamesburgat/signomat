@@ -19,7 +19,7 @@ def test_training_plan_builds_inventory_and_label_schema():
     inventory, label_schema = MODULE.build_outputs(plan, repo_root)
 
     assert inventory["strategy"] == "detect_any_sign_then_sort"
-    assert {item["id"] for item in inventory["datasets"]} == {"mapillary", "glare"}
+    assert {item["id"] for item in inventory["datasets"]} == {"mapillary", "glare", "bdd100k"}
     assert label_schema["detector_categories"] == ["sign"]
     assert "guide_general" in label_schema["broad_categories"]
     assert "unknown_sign" in label_schema["broad_categories"]

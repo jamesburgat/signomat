@@ -16,6 +16,11 @@ broader, recall-heavy model.
   - Why: adds hard examples under strong glare and windshield-style reflections
   - Source: https://arxiv.org/abs/2209.08716
 
+- `BDD100K Detection`
+  - Role: U.S.-heavy full-scene detector supplement
+  - Why: adds many road-scene boxes for generic `traffic sign`, which directly targets detector recall
+  - Source: https://bdd-data.berkeley.edu/
+
 ## Recommended Label Strategy
 
 Use a single `sign` detector for training, and keep the broad families only for later sorting:
@@ -81,12 +86,34 @@ Expected raw dataset roots:
 
 - `data/training/raw/mapillary`
 - `data/training/raw/glare`
+- `data/training/raw/bdd100k`
 
 Supported annotation inputs today:
 
 - COCO-style `.json`
+- BDD100K Detection `.json`
 - CSV files with filename plus `x1/y1/x2/y2` style box columns
 - Pascal VOC `.xml`
+- Mapillary Traffic Sign Dataset per-image `.json`
+
+### BDD100K Detector Supplement
+
+BDD100K is the best next data source for improving detector recall because it
+adds full driving scenes with a generic `traffic sign` detection class. Download
+the 100K images and Detection 2020 labels from the official BDD100K site after
+accepting their terms, then arrange them as:
+
+```text
+data/training/raw/bdd100k/images/100k/train/*.jpg
+data/training/raw/bdd100k/images/100k/val/*.jpg
+data/training/raw/bdd100k/annotations/train/*.json
+data/training/raw/bdd100k/annotations/val/*.json
+```
+
+The normalizer also supports the older single-file Detection JSON layout, but
+the per-image `train/*.json` and `val/*.json` layout matches the `100k-2`
+download. It keeps only BDD labels whose category is `traffic sign`, then the
+YOLO `any_sign` export collapses them into the detector's single `sign` class.
 
 ## Next Model Step
 

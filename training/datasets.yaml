@@ -47,3 +47,15 @@ datasets:
     notes:
       - Add after the base merge to improve windshield glare robustness
       - Especially useful for harsh daytime reflections
+
+  - id: bdd100k
+    name: BDD100K Detection
+    role: us_driving_scene_supplement
+    local_root: data/training/raw/bdd100k
+    expected:
+      images_dir: images
+      annotations_dir: annotations
+    source_url: https://bdd-data.berkeley.edu/
+    notes:
+      - Adds U.S.-heavy full driving scenes with generic traffic sign boxes
+      - Use the 100K images plus Detection 2020 labels, keeping only traffic sign boxes

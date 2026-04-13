@@ -5,6 +5,7 @@ Create the raw dataset folders first:
 ```bash
 mkdir -p data/training/raw/mapillary
 mkdir -p data/training/raw/glare
+mkdir -p data/training/raw/bdd100k/images data/training/raw/bdd100k/annotations
 ```
 
 ## Mapillary
@@ -45,6 +46,25 @@ What to do:
 2. Download the `Images` folder at minimum.
 3. Place the images and annotations under `data/training/raw/glare`.
 
+## BDD100K Detection
+
+- Official dataset page: https://bdd-data.berkeley.edu/
+- Paper: https://openaccess.thecvf.com/content_CVPR_2020/html/Yu_BDD100K_A_Diverse_Driving_Dataset_for_Heterogeneous_Multitask_Learning_CVPR_2020_paper.html
+
+Notes:
+
+- Use this for the detector, not the classifier.
+- Download the 100K images and Detection 2020 labels after accepting the dataset terms.
+- The normalizer keeps only labels whose category is `traffic sign`.
+
+What to do:
+
+1. Log in at the official dataset page.
+2. Download `100K Images` and `Detection 2020 Labels`.
+3. Extract or move them under `data/training/raw/bdd100k`.
+4. Keep image subfolders nested under `images`; for example, `images/100k/train` and `images/100k/val`.
+5. Place per-image label JSON folders under `annotations/train` and `annotations/val`. The older `det_train.json` and `det_val.json` files are also supported if that is the format you downloaded.
+
 ## Recommended Folder Layout
 
 If possible, arrange the files like this:
@@ -53,6 +73,10 @@ If possible, arrange the files like this:
 - `data/training/raw/mapillary/annotations`
 - `data/training/raw/glare/images`
 - `data/training/raw/glare/annotations`
+- `data/training/raw/bdd100k/images/100k/train`
+- `data/training/raw/bdd100k/images/100k/val`
+- `data/training/raw/bdd100k/annotations/train`
+- `data/training/raw/bdd100k/annotations/val`
 
 ## After Downloading
 
@@ -74,6 +98,7 @@ This will:
 
 - `Mapillary` is the least straightforward right now because access appears gated by login, license, or API workflow.
 - `GLARE` is the easiest to obtain directly.
+- `BDD100K` requires login and license acceptance, but it is the strongest next detector supplement.
 
 ## Sources
 
@@ -84,3 +109,5 @@ This will:
 - Mapillary SDK: https://github.com/mapillary/mapillary-python-sdk
 - GLARE repo: https://github.com/NicholasCG/GLARE_Dataset
 - GLARE paper: https://arxiv.org/abs/2209.08716
+- BDD100K dataset page: https://bdd-data.berkeley.edu/
+- BDD100K paper: https://openaccess.thecvf.com/content_CVPR_2020/html/Yu_BDD100K_A_Diverse_Driving_Dataset_for_Heterogeneous_Multitask_Learning_CVPR_2020_paper.html

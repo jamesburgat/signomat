@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -78,11 +79,13 @@ def build_image_indexes(image_root: Path) -> tuple[dict[str, Path], dict[str, Pa
     image_stem_index: dict[str, Path] = {}
     if not image_root.exists():
         return image_name_index, image_stem_index
-    for image_path in sorted(image_root.rglob("*")):
-        if not image_path.is_file() or image_path.suffix.lower() not in IMAGE_SUFFIXES:
-            continue
-        image_name_index.setdefault(image_path.name, image_path)
-        image_stem_index.setdefault(image_path.stem, image_path)
+    for dirpath, _, filenames in os.walk(image_root, followlinks=True):
+        for file_name in sorted(filenames):
+            image_path = Path(dirpath) / file_name
+            if image_path.suffix.lower() not in IMAGE_SUFFIXES:
+                continue
+            image_name_index.setdefault(image_path.name, image_path)
+            image_stem_index.setdefault(image_path.stem, image_path)
     return image_name_index, image_stem_index
 
 
@@ -307,6 +310,100 @@ def parse_mtsd_annotation_payload(
     return records
 
 
+def bdd100k_frames_from_payload(payload: Any) -> list[dict[str, Any]] | None:
+    if isinstance(payload, list):
+        frames = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("frames"), list):
+        frames = payload["frames"]
+    else:
+        return None
+    if not all(isinstance(frame, dict) for frame in frames):
+        return None
+    return frames
+
+
+def bdd100k_frame_file_name(frame: dict[str, Any]) -> str | None:
+    for key in ("name", "file_name", "image", "url"):
+        value = frame.get(key)
+        if not value:
+            continue
+        return Path(str(value)).name
+    return None
+
+
+def bdd100k_frame_labels(frame: dict[str, Any], payload: Any) -> list[Any]:
+    labels = frame.get("labels")
+    if labels is None:
+        labels = frame.get("objects")
+    if labels is None and isinstance(payload, dict):
+        labels = payload.get("labels")
+    if labels is None and isinstance(payload, dict):
+        labels = payload.get("objects")
+    if not isinstance(labels, list):
+        return []
+    return labels
+
+
+def parse_bdd100k_annotation_payload(
+    payload: Any,
+    annotation_path: Path,
+    dataset_id: str,
+    image_root: Path,
+    repo_root: Path,
+    image_name_index: dict[str, Path],
+    image_stem_index: dict[str, Path],
+) -> list[dict[str, Any]]:
+    frames = bdd100k_frames_from_payload(payload)
+    if frames is None:
+        return []
+
+    payload_file_name = bdd100k_frame_file_name(payload) if isinstance(payload, dict) else None
+    records: list[dict[str, Any]] = []
+    for frame in frames:
+        file_name = bdd100k_frame_file_name(frame) or payload_file_name or annotation_path.stem
+        if not file_name:
+            continue
+        image_path = resolve_image_path(file_name, image_root, image_name_index, image_stem_index)
+        if image_path is None:
+            continue
+        for label in bdd100k_frame_labels(frame, payload):
+            if not isinstance(label, dict):
+                continue
+            raw_label = str(label.get("category") or "").strip()
+            if raw_label.lower() != "traffic sign":
+                continue
+            box = label.get("box2d") or {}
+            if not isinstance(box, dict):
+                continue
+            x1 = box.get("x1")
+            y1 = box.get("y1")
+            x2 = box.get("x2")
+            y2 = box.get("y2")
+            if not all(value is not None for value in (x1, y1, x2, y2)):
+                continue
+            records.append(
+                {
+                    "dataset_id": dataset_id,
+                    "source_annotation": relpath_or_str(annotation_path, repo_root),
+                    "image_path": relpath_or_str(image_path, repo_root),
+                    "raw_label": raw_label,
+                    "broad_category": map_to_broad_category(raw_label),
+                    "bbox_xyxy": [float(x1), float(y1), float(x2), float(y2)],
+                }
+            )
+    return records
+
+
+def iter_annotation_files(annotation_root: Path) -> list[Path]:
+    if not annotation_root.exists():
+        return []
+    files: list[Path] = []
+    for dirpath, _, filenames in os.walk(annotation_root, followlinks=True):
+        for file_name in sorted(filenames):
+            files.append(Path(dirpath) / file_name)
+    return files
+
+
 def parse_json_annotation_file(
     annotation_path: Path,
     dataset_id: str,
@@ -328,6 +425,19 @@ def parse_json_annotation_file(
                 image_stem_index,
             ),
             "coco_json",
+        )
+    if bdd100k_frames_from_payload(payload) is not None:
+        return (
+            parse_bdd100k_annotation_payload(
+                payload,
+                annotation_path,
+                dataset_id,
+                image_root,
+                repo_root,
+                image_name_index,
+                image_stem_index,
+            ),
+            "bdd100k_json",
         )
     if isinstance(payload, dict) and isinstance(payload.get("objects"), list):
         return (
@@ -365,9 +475,7 @@ def normalize_dataset(repo_root: Path, dataset: dict[str, Any]) -> tuple[list[di
     parser_counts: Counter[str] = Counter()
 
     if annotation_root.exists():
-        for annotation_path in sorted(annotation_root.rglob("*")):
-            if not annotation_path.is_file():
-                continue
+        for annotation_path in iter_annotation_files(annotation_root):
             parser = detect_annotation_parser(annotation_path)
             if parser is None:
                 continue
