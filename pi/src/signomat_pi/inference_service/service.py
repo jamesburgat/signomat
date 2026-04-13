@@ -175,7 +175,14 @@ class InferenceService:
                                     "notes": None,
                                 }
                                 self.database.add_detection(payload)
-                                for local_path in (assets.clean_frame_path, assets.annotated_frame_path, assets.crop_path):
+                                for local_path in (
+                                    assets.clean_frame_path,
+                                    assets.annotated_frame_path,
+                                    assets.crop_path,
+                                    assets.clean_thumbnail_path,
+                                    assets.annotated_thumbnail_path,
+                                    assets.crop_thumbnail_path,
+                                ):
                                     if local_path:
                                         self.database.enqueue_upload(
                                             "media_asset",

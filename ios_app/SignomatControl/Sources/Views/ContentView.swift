@@ -12,6 +12,7 @@ struct ContentView: View {
     ]
     private let tripCommands: [SignomatCommand] = [.startTrip, .stopTrip, .saveDiagnosticSnapshot]
     private let recordingCommands: [SignomatCommand] = [.startRecording, .stopRecording]
+    private let inferenceCommands: [SignomatCommand] = [.enableInference, .disableInference]
 
     var body: some View {
         NavigationStack {
@@ -62,6 +63,7 @@ struct ContentView: View {
             statusRow("Trip ID", status.tripID ?? "None")
             statusRow("Trip Active", status.trip ? "Yes" : "No")
             recordingBadge(isRecording: status.rec)
+            statusRow("Inference", status.inf ? "Enabled" : "Disabled")
             statusRow("Last Detection", status.last ?? "None")
             statusRow("Last Detection Time", status.lastTS ?? "None")
             statusRow("Detections This Trip", "\(status.det)")
@@ -159,6 +161,15 @@ struct ContentView: View {
                     ForEach(recordingCommands) { command in
                         commandButton(command)
                     }
+                }
+            }
+
+            Text("Inference")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            LazyVGrid(columns: commandGrid, spacing: 12) {
+                ForEach(inferenceCommands) { command in
+                    commandButton(command)
                 }
             }
         }

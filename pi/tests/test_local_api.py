@@ -41,6 +41,15 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
         assert detections.status_code == 200
         assert len(detections.json()) >= 1
 
+        replay = client.post(f"/replay/{trip_id}")
+        assert replay.status_code == 200
+        replay_payload = replay.json()
+        assert replay_payload["ok"] is True
+        assert replay_payload["trip_id"] == trip_id
+        assert replay_payload["evaluated_detections"] >= 1
+        assert replay_payload["mode"] == "stored_detection_frame_replay"
+        assert replay_payload.get("export_path")
+
         gps = client.get("/gps/recent")
         assert gps.status_code == 200
         assert len(gps.json()) >= 1

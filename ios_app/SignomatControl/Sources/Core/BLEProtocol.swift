@@ -175,6 +175,8 @@ enum SignomatCommand: String, CaseIterable, Identifiable {
     case stopTrip = "stop_trip"
     case startRecording = "start_recording"
     case stopRecording = "stop_recording"
+    case enableInference = "enable_inference"
+    case disableInference = "disable_inference"
     case saveDiagnosticSnapshot = "save_diagnostic_snapshot"
 
     var id: String { rawValue }
@@ -185,6 +187,8 @@ enum SignomatCommand: String, CaseIterable, Identifiable {
         case .stopTrip: return "Stop Trip"
         case .startRecording: return "Start Recording"
         case .stopRecording: return "Stop Recording"
+        case .enableInference: return "Enable Inference"
+        case .disableInference: return "Disable Inference"
         case .saveDiagnosticSnapshot: return "Save Diagnostic Snapshot"
         }
     }

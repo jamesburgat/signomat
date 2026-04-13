@@ -21,6 +21,7 @@ from signomat_pi.common.lcd import LCDStatusDisplay
 from signomat_pi.common.storage import StorageManager
 from signomat_pi.common.utils import stable_id, utc_now, utc_now_text
 from signomat_pi.gps_service.service import GPSService
+from signomat_pi.inference_service.replay import ReplayEvaluator
 from signomat_pi.inference_service.service import InferenceService
 from signomat_pi.sync_service.service import SyncService
 
@@ -61,6 +62,7 @@ class SignomatRuntime:
         self.capture_service = CaptureService(config, self.storage, self.database)
         self.gps_service = GPSService(config, self.storage, self.database)
         self.inference_service = InferenceService(config, self.storage, self.database, self.capture_service, self.gps_service, RuntimeCallbacks(self))
+        self.replay_evaluator = ReplayEvaluator(config, self.storage, self.database)
         self.ble_service = BLEControlService(config, self)
         if self.lcd.enabled and not self.lcd.available and self.lcd.error:
             LOGGER.warning("LCD unavailable: %s", self.lcd.error)
@@ -278,6 +280,9 @@ class SignomatRuntime:
         if handler is None:
             return {"ok": False, "message": f"unknown command: {command}"}
         return handler()
+
+    def replay_trip(self, trip_id: str, *, export: bool = True) -> dict:
+        return self.replay_evaluator.evaluate_trip(trip_id, export=export)
 
     def temperature_c(self) -> float | None:
         path = Path("/sys/class/thermal/thermal_zone0/temp")

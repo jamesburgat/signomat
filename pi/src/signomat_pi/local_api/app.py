@@ -390,6 +390,10 @@ def create_app(runtime) -> FastAPI:
     def snapshot():
         return runtime.diagnostic_snapshot()
 
+    @app.post("/replay/{trip_id}")
+    def replay_trip(trip_id: str, export: bool = True):
+        return runtime.replay_trip(trip_id, export=export)
+
     @app.get("/config")
     def config():
         return runtime.config.model_dump()

@@ -45,6 +45,10 @@ export default {
       return handleIngestBatch(ctx);
     }
 
+    if (request.method === "PUT" && url.pathname === "/ingest/media") {
+      return handleIngestMedia(ctx);
+    }
+
     if (request.method === "GET" && url.pathname === "/public/detections") {
       return handlePublicDetections(ctx);
     }
@@ -104,6 +108,35 @@ async function handleIngestBatch(ctx: RouteContext): Promise<Response> {
     },
   };
   return json(response, 202);
+}
+
+async function handleIngestMedia(ctx: RouteContext): Promise<Response> {
+  const auth = ctx.request.headers.get("authorization");
+  const expected = `Bearer ${ctx.env.SIGNOMAT_INGEST_TOKEN}`;
+  if (auth !== expected) {
+    return json({ ok: false, error: "unauthorized" }, 401);
+  }
+
+  const bucketName = ctx.url.searchParams.get("bucket");
+  const key = ctx.url.searchParams.get("key");
+  if (!bucketName || !key) {
+    return json({ ok: false, error: "bucket_and_key_required" }, 400);
+  }
+
+  const bucket = selectBucket(ctx.env, bucketName);
+  if (!bucket) {
+    return json({ ok: false, error: "unknown_bucket" }, 404);
+  }
+  if (!ctx.request.body) {
+    return json({ ok: false, error: "missing_body" }, 400);
+  }
+
+  const contentType = ctx.request.headers.get("content-type") ?? undefined;
+  await bucket.put(key, ctx.request.body, {
+    httpMetadata: contentType ? { contentType } : undefined,
+  });
+
+  return json({ ok: true, bucket: bucketName, key }, 201);
 }
 
 async function handlePublicDetections(ctx: RouteContext): Promise<Response> {
