@@ -173,7 +173,7 @@ class SyncService:
             response = self._post_json("/ingest/batch", payload)
         except Exception as exc:
             self._mark_upload_failure(queue_ids, max((item["retry_count"] for item in metadata_items), default=0), str(exc))
-            return {"ok": False, "message": str(exc)}
+            return {"ok": False, "message": str(exc), "counts": {"items": len(metadata_items), "synced": 0}}
 
         self.database.mark_upload_items_state(queue_ids, "synced", last_error=None)
         for event_id in event_ids:
@@ -191,6 +191,7 @@ class SyncService:
             headers={
                 "content-type": "application/json",
                 "authorization": f"Bearer {self.config.sync.ingest_token}",
+                "user-agent": "signomat-pi-sync/0.1",
                 "x-signomat-request-sha256": hashlib.sha256(body).hexdigest(),
             },
             method="POST",
@@ -217,6 +218,7 @@ class SyncService:
             "content-type": content_type,
             "content-length": str(file_path.stat().st_size),
             "authorization": f"Bearer {self.config.sync.ingest_token}",
+            "user-agent": "signomat-pi-sync/0.1",
         }
         with file_path.open("rb") as handle:
             connection = connection_cls(parsed.netloc, timeout=self.config.sync.request_timeout_seconds)
