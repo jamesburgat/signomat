@@ -19,3 +19,4 @@ DerivedData/
 /runs/
 /yolo*.pt
 /archive/frontend/.wrangler/
+ios_app/SignomatControl.xcodeproj/project.xcworkspace/xcuserdata/jamesburgat.xcuserdatad/UserInterfaceState.xcuserstate
