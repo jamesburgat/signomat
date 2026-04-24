@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Signomat Archive</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Low-Fi Archive</p>
+          <h1>Signomat</h1>
+        </div>
+        <nav class="nav">
+          <a href="#/">Archive</a>
+          <a href="#/review">Review</a>
+          <a href="#/training">Training</a>
+        </nav>
+        <form id="api-config-form" class="api-config">
+          <label for="api-base">API base</label>
+          <input id="api-base" name="apiBase" type="url" placeholder="https://signomat-api.example.workers.dev" />
+          <button type="submit">Use</button>
+        </form>
+      </header>
+
+      <main id="app" class="app-shell">
+        <section class="panel">
+          <p>Loading archive...</p>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -23,4 +23,6 @@ targets:
         UILaunchScreen: {}
         NSBluetoothAlwaysUsageDescription: Signomat uses Bluetooth to control and monitor your Pi.
         NSBluetoothPeripheralUsageDescription: Signomat uses Bluetooth to connect to your Pi.
-
+        NSLocalNetworkUsageDescription: Signomat uses your local network to show Pi preview frames before a drive.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true

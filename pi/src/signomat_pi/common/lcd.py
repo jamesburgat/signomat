@@ -11,15 +11,19 @@ class LCDStatusDisplay:
         self.rows = int(os.getenv("SIGNOMAT_LCD_ROWS", "2"))
         self.driver = os.getenv("SIGNOMAT_LCD_DRIVER", "i2c").strip().lower()
         self.refresh_interval = float(os.getenv("SIGNOMAT_LCD_REFRESH_SECONDS", "0.5"))
+        self.alert_page_seconds = float(os.getenv("SIGNOMAT_LCD_ALERT_PAGE_SECONDS", "2.0"))
         self.enabled = self.driver != "off"
         self.available = False
         self.error = None
         self._lock = threading.Lock()
         self._last_refresh = 0.0
         self._steady_lines = ("", "")
+        self._steady_alert = False
         self._transient_lines = None
+        self._transient_alert = False
         self._transient_until = 0.0
         self._last_written = None
+        self._last_alert_mode = False
         self.lcd = None
 
         if not self.enabled:
@@ -82,14 +86,64 @@ class LCDStatusDisplay:
         cleaned = "".join(ch if 32 <= ord(ch) <= 126 else " " for ch in str(text))
         return cleaned[: self.cols].ljust(self.cols)
 
-    def _write(self, lines, force: bool = False):
+    def _clean(self, text: str) -> str:
+        cleaned = "".join(ch if 32 <= ord(ch) <= 126 else " " for ch in str(text))
+        return " ".join(cleaned.split())
+
+    def _chunks(self, text: str) -> list[str]:
+        words = self._clean(text).split()
+        chunks: list[str] = []
+        current = ""
+        for word in words:
+            while len(word) > self.cols:
+                if current:
+                    chunks.append(current)
+                    current = ""
+                chunks.append(word[: self.cols])
+                word = word[self.cols :]
+            candidate = word if not current else f"{current} {word}"
+            if len(candidate) <= self.cols:
+                current = candidate
+            else:
+                chunks.append(current)
+                current = word
+        if current:
+            chunks.append(current)
+        return chunks or ["Check Pi"]
+
+    def _alert_lines(self, alert: dict) -> tuple[str, str]:
+        title_by_id = {
+            "inference_error": "YOLO fault",
+            "storage_low": "Low storage",
+            "memory_low": "Low memory",
+            "sync_error": "Sync error",
+        }
+        title = alert.get("lcd_title") or title_by_id.get(alert.get("id"), alert.get("title") or "Alert")
+        line1 = self._fit(f"/!\\ {title}")
+        detail = alert.get("lcd_message") or alert.get("message") or alert.get("id") or "Check Pi"
+        chunks = self._chunks(detail)
+        index = int(time.monotonic() // max(self.alert_page_seconds, 0.5)) % len(chunks)
+        return line1, self._fit(chunks[index])
+
+    def _set_alert_contrast(self, alert: bool) -> None:
+        if not self.available or alert == self._last_alert_mode:
+            return
+        if hasattr(self.lcd, "backlight_enabled"):
+            try:
+                self.lcd.backlight_enabled = not alert
+            except Exception:  # pragma: no cover
+                pass
+        self._last_alert_mode = alert
+
+    def _write(self, lines, force: bool = False, alert: bool = False):
         if not self.available:
             return
         now = time.monotonic()
         if not force and (now - self._last_refresh) < self.refresh_interval:
             return
-        if not force and lines == self._last_written:
+        if not force and lines == self._last_written and alert == self._last_alert_mode:
             return
+        self._set_alert_contrast(alert)
         self.lcd.clear()
         self.lcd.write_string(lines[0])
         if self.rows > 1:
@@ -100,20 +154,25 @@ class LCDStatusDisplay:
 
     def _flush(self, force: bool = False):
         active_lines = self._steady_lines
-        if self._transient_lines and time.monotonic() < self._transient_until:
+        alert = self._steady_alert
+        if self._transient_lines and time.monotonic() < self._transient_until and not self._steady_alert:
             active_lines = self._transient_lines
+            alert = self._transient_alert
         else:
             self._transient_lines = None
-        self._write(active_lines, force=force)
+            self._transient_alert = False
+        self._write(active_lines, force=force, alert=alert)
 
-    def show_message(self, line1: str = "", line2: str = "", force: bool = False, transient_seconds: float = 0):
+    def show_message(self, line1: str = "", line2: str = "", force: bool = False, transient_seconds: float = 0, alert: bool = False):
         with self._lock:
             lines = (self._fit(line1), self._fit(line2))
             if transient_seconds > 0:
                 self._transient_lines = lines
+                self._transient_alert = alert
                 self._transient_until = time.monotonic() + transient_seconds
             else:
                 self._steady_lines = lines
+                self._steady_alert = alert
             self._flush(force=force)
 
     def show_startup_stage(self, stage: str, detail: str = ""):
@@ -124,7 +183,7 @@ class LCDStatusDisplay:
         self.show_message("Signomat", detail, force=True)
 
     def show_error(self, message: str):
-        self.show_message("Signomat", message, force=True)
+        self.show_message("/!\\ Alert", message, force=True, alert=True)
 
     def show_saved_event(self, label: str):
         self.show_message("Sign saved", label, transient_seconds=2, force=True)
@@ -147,7 +206,12 @@ class LCDStatusDisplay:
         ble_connected: bool,
         wifi_connected: bool,
         sync_status: str,
+        alert: dict | None = None,
     ):
+        if alert:
+            line1, line2 = self._alert_lines(alert)
+            self.show_message(line1, line2, alert=True)
+            return
         speed_mph = None if speed_mps is None else speed_mps * 2.23694
         line1 = f"{self._status_flag('P', ble_connected)} {self._status_flag('W', wifi_connected)} "
         if gps_health in {"fix", "mock"}:
@@ -163,7 +227,7 @@ class LCDStatusDisplay:
         line1 = f"{line1}{speed_text}"
         if trip_active:
             line2 = f"Signs {event_count:03d}"
-        elif sync_status not in {"idle", "ok", "success"}:
+        elif sync_status not in {"idle", "ok", "success", "synced"}:
             line2 = f"Sync {sync_status}"
         elif inference_active:
             line2 = "Ready"

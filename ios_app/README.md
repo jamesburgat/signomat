@@ -18,5 +18,5 @@ open SignomatControl.xcodeproj
 - scan/connect to the Pi BLE service
 - show core runtime status
 - send the required control commands
-- no live media transfer or live preview
-
+- show a lightweight pre-drive preview by loading still frames from the Pi local API
+- no BLE media transport yet; use the Pi local `/preview` or `/preview.jpg` endpoints for troubleshooting

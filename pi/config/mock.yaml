@@ -32,11 +32,11 @@ gps:
 inference:
   enabled: true
   interval_seconds: 0.5
-  save_crops: true
+  save_crops: false
   save_unknown_signs: true
   thumbnail_max_edge: 320
-  detector_backend: heuristic
-  classifier_backend: heuristic
+  detector_backend: mock_detector
+  classifier_backend: mock_classifier
   max_candidates: 8
   min_box_area: 500
   max_box_area_ratio: 0.18
@@ -50,9 +50,6 @@ inference:
     downscale_width: 960
     color_normalization: true
     contrast_normalization: true
-    red_blue_yellow_priors: true
-    shape_priors: true
-    day_night_preset: day
 
 api:
   host: 0.0.0.0

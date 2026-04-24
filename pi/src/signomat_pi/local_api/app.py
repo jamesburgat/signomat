@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 
 
 def resize_frame_for_preview(frame, max_width: int | None):
@@ -16,6 +16,15 @@ def resize_frame_for_preview(frame, max_width: int | None):
     scale = max_width / max(frame.shape[1], 1)
     height = max(1, int(round(frame.shape[0] * scale)))
     return cv2.resize(frame, (max_width, height))
+
+
+def encode_preview_jpeg(frame, jpeg_quality: int, max_width: int | None):
+    preview_frame = resize_frame_for_preview(frame, max_width)
+    quality = max(30, min(jpeg_quality, 95))
+    ok, encoded = cv2.imencode(".jpg", preview_frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+    if not ok:
+        return None
+    return encoded.tobytes()
 
 
 class CameraTuningUpdate(BaseModel):
@@ -377,6 +386,21 @@ def create_app(runtime) -> FastAPI:
             preview_stream(frame_interval_seconds, quality, max_frames, target_width),
             media_type="multipart/x-mixed-replace; boundary=frame",
         )
+
+    @app.get("/preview.jpg")
+    def preview_jpg(
+        jpeg_quality: int | None = None,
+        max_width: int | None = None,
+    ):
+        packet = runtime.capture_service.latest_frame()
+        if packet is None:
+            raise HTTPException(status_code=503, detail="preview frame unavailable")
+        target_quality = jpeg_quality if jpeg_quality is not None else runtime.config.api.preview_jpeg_quality
+        target_width = max_width if max_width is not None else runtime.config.api.preview_max_width
+        encoded = encode_preview_jpeg(packet.frame, target_quality, target_width)
+        if encoded is None:
+            raise HTTPException(status_code=500, detail="preview encoding failed")
+        return Response(content=encoded, media_type="image/jpeg")
 
     @app.get("/uploads/status")
     def uploads_status():

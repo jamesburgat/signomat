@@ -5,6 +5,9 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var viewModel: StatusViewModel
+    @AppStorage("previewBaseURL") private var previewBaseURL = "http://signomat.local:8000"
+    @AppStorage("previewMaxWidth") private var previewMaxWidth = 960
+    @State private var previewRevision = UUID().uuidString
 
     private let commandGrid: [GridItem] = [
         GridItem(.flexible()),
@@ -18,7 +21,9 @@ struct ContentView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    previewCard
                     tripActionCard
+                    alertCard
                     statusCard
                     mapCard
                     categoryCard
@@ -46,6 +51,81 @@ struct ContentView: View {
             return "Scanning..."
         }
         return "Connect"
+    }
+
+    private var previewCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Troubleshooting Preview")
+                .font(.headline)
+
+            Text("Use the Pi local API for a quick pre-drive frame check. BLE stays in charge of control and status, while preview stays lightweight on local network.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            TextField("Pi local API URL", text: $previewBaseURL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.URL)
+                .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: 10) {
+                Button("Refresh Frame") {
+                    refreshPreview()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(previewSnapshotURL == nil)
+
+                if let previewPageURL {
+                    Link("Open Live Preview", destination: previewPageURL)
+                        .buttonStyle(.bordered)
+                }
+            }
+
+            if let previewSnapshotURL {
+                AsyncImage(url: previewSnapshotURL, transaction: Transaction(animation: .easeInOut(duration: 0.2))) { phase in
+                    switch phase {
+                    case .empty:
+                        previewPlaceholder(
+                            title: "Loading frame...",
+                            message: "Fetching a still image from \(previewHostLabel)."
+                        )
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 220)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    case .failure:
+                        previewPlaceholder(
+                            title: "Preview unavailable",
+                            message: "Make sure the phone can reach \(previewHostLabel) and the Pi local API is running."
+                        )
+                    @unknown default:
+                        previewPlaceholder(
+                            title: "Preview unavailable",
+                            message: "The still frame could not be rendered."
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .background(Color.secondary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            } else {
+                previewPlaceholder(
+                    title: "Enter a Pi URL",
+                    message: "Example: http://signomat.local:8000 or http://192.168.4.1:8000"
+                )
+            }
+
+            Text("Snapshot endpoint: /preview.jpg. Live tuning page: /preview.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
     private var statusCard: some View {
@@ -87,6 +167,25 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.thinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    @ViewBuilder
+    private var alertCard: some View {
+        if let alert = viewModel.manager.status.alert {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(alert.title, systemImage: "exclamationmark.triangle.fill")
+                    .font(.headline)
+                Text(alert.message)
+                    .font(.subheadline)
+                Text(alert.level.capitalized)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(alert.level == "critical" ? Color.red.opacity(0.18) : Color.yellow.opacity(0.18))
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+        }
     }
 
     private var tripActionCard: some View {
@@ -215,6 +314,20 @@ struct ContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
+    private func previewPlaceholder(title: String, message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 220)
+        .padding()
+    }
+
     private func commandButton(_ command: SignomatCommand) -> some View {
         Button(command.title) {
             viewModel.manager.send(command)
@@ -337,5 +450,34 @@ struct ContentView: View {
             return String(format: "%.2f km", totalMeters / 1000)
         }
         return String(format: "%.0f m", totalMeters)
+    }
+
+    private var previewHostLabel: String {
+        normalizedPreviewBaseURL?.host ?? previewBaseURL
+    }
+
+    private var normalizedPreviewBaseURL: URL? {
+        let trimmed = previewBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let candidate = trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") ? trimmed : "http://\(trimmed)"
+        return URL(string: candidate)
+    }
+
+    private var previewSnapshotURL: URL? {
+        guard let baseURL = normalizedPreviewBaseURL else { return nil }
+        var components = URLComponents(url: baseURL.appending(path: "preview.jpg"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "max_width", value: "\(previewMaxWidth)"),
+            URLQueryItem(name: "_rev", value: previewRevision)
+        ]
+        return components?.url
+    }
+
+    private var previewPageURL: URL? {
+        normalizedPreviewBaseURL?.appending(path: "preview")
+    }
+
+    private func refreshPreview() {
+        previewRevision = UUID().uuidString
     }
 }

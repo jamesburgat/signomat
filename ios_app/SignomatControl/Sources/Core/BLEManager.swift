@@ -2,6 +2,7 @@ import Combine
 import CoreBluetooth
 import CoreLocation
 import Foundation
+import UserNotifications
 
 final class BLEManager: NSObject, ObservableObject {
     @Published var isConnected = false
@@ -19,9 +20,12 @@ final class BLEManager: NSObject, ObservableObject {
     private var commandCharacteristic: CBCharacteristic?
     private let decoder = JSONDecoder()
     private var scanTimeoutWorkItem: DispatchWorkItem?
+    private var lastNotifiedAlertID: String?
 
     override init() {
         super.init()
+        UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         central = CBCentralManager(delegate: self, queue: .main)
     }
 
@@ -236,6 +240,7 @@ extension BLEManager: CBPeripheralDelegate {
             if payload.ble {
                 lastEvent = "Pi reports BLE session active"
             }
+            handleAlert(payload.alert)
             return
         }
         if uuid == CBUUID(string: SignomatBLE.sessionStateCharacteristicUUID),
@@ -291,6 +296,26 @@ extension BLEManager: CBPeripheralDelegate {
         tripBreadcrumbs.append(TripBreadcrumb(coordinate: point, timestamp: Date()))
     }
 
+    private func handleAlert(_ alert: StatusAlertPayload?) {
+        guard let alert else {
+            lastNotifiedAlertID = nil
+            return
+        }
+        lastEvent = "\(alert.title): \(alert.message)"
+        guard alert.id != lastNotifiedAlertID else { return }
+        lastNotifiedAlertID = alert.id
+        let content = UNMutableNotificationContent()
+        content.title = "Signomat \(alert.level.capitalized)"
+        content.body = "\(alert.title): \(alert.message)"
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "signomat-\(alert.id)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
     private func scheduleScanTimeout() {
         cancelScanTimeout()
         let workItem = DispatchWorkItem { [weak self] in
@@ -329,5 +354,15 @@ extension BLEManager: CBPeripheralDelegate {
         @unknown default:
             return "unknown"
         }
+    }
+}
+
+extension BLEManager: UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 }

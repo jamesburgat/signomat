@@ -10,6 +10,15 @@ Cloudflare Worker backed by D1 and R2.
   - `GET /config-check`
   - `GET /public/detections`
   - `GET /public/detections/:eventId`
+  - `GET /public/trips`
+  - `GET /public/trips/:tripId`
+- low-fi admin endpoints:
+  - `GET /admin/review/queue`
+  - `PATCH /admin/detections/:eventId/review`
+  - `GET /admin/training/summary`
+  - `GET /admin/training/jobs`
+  - `POST /admin/training/jobs`
+  - `GET /admin/training/jobs/:jobId/export`
 - D1 schema + migration scaffold in `migrations/`
 - Wrangler config with D1/R2 bindings
 
@@ -45,6 +54,7 @@ npx wrangler deploy
 
 ## Current Shape
 
-This first version is metadata-first. It stores archive rows and asset keys, but
-does not yet implement bulk media upload handling through the Worker. That is
-the next sync-side step.
+This is still a lightweight archive/control plane. It stores metadata, asset
+keys, review state, and training-job drafts. The training endpoints prepare
+exportable scopes from reviewed archive data; they do not run model training in
+Cloudflare.

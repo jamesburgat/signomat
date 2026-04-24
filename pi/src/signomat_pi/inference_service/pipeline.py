@@ -35,7 +35,7 @@ class FramePreprocessor:
         return output
 
 
-class ColorShapeCandidateDetector:
+class MockColorShapeDetector:
     def __init__(self, config):
         self.config = config
 
@@ -173,12 +173,14 @@ class UltralyticsSignDetector:
         imgsz: int,
         max_candidates: int,
         confidence_threshold: float,
+        min_box_area: int,
         verbose: bool = False,
     ) -> None:
         self.model = _load_yolo_model(model_path, "detect")
         self.imgsz = imgsz
         self.max_candidates = max_candidates
         self.confidence_threshold = max(0.001, min(float(confidence_threshold), 0.99))
+        self.min_box_area = max(1, int(min_box_area))
         self.verbose = verbose
 
     def detect(self, frame: np.ndarray) -> list[DetectionCandidate]:
@@ -208,6 +210,8 @@ class UltralyticsSignDetector:
             bottom = max(top + 1, min(frame_h, int(round(y2))))
             if right <= left or bottom <= top:
                 continue
+            if not self._passes_size_filter(left, top, right, bottom):
+                continue
             class_id = int(_as_float(box.cls[0])) if getattr(box, "cls", None) is not None else 0
             label = _names_lookup(names, class_id)
             confidence = _as_float(box.conf[0])
@@ -223,8 +227,15 @@ class UltralyticsSignDetector:
         candidates.sort(key=lambda item: item.confidence, reverse=True)
         return candidates[: self.max_candidates]
 
+    @staticmethod
+    def _box_area(left: int, top: int, right: int, bottom: int) -> int:
+        return max(0, right - left) * max(0, bottom - top)
 
-class HeuristicSignClassifier:
+    def _passes_size_filter(self, left: int, top: int, right: int, bottom: int) -> bool:
+        return self._box_area(left, top, right, bottom) >= self.min_box_area
+
+
+class MockSignClassifier:
     def __init__(self) -> None:
         self.speed_templates = self._build_speed_templates(("25", "35", "45", "55"))
 

@@ -5,14 +5,20 @@ from pathlib import Path
 
 import cv2
 
+from signomat_pi.common.config import resolve_repo_path
 from signomat_pi.common.models import DetectionCandidate
 from signomat_pi.common.utils import utc_now_text
-from signomat_pi.inference_service.pipeline import FramePreprocessor, HeuristicSignClassifier
+from signomat_pi.inference_service.pipeline import (
+    DetectorLabelClassifier,
+    FramePreprocessor,
+    MockSignClassifier,
+    UltralyticsCropClassifier,
+)
 from signomat_pi.inference_service.taxonomy import TaxonomyMapper
 
 
 class ReplayEvaluator:
-    def __init__(self, config, storage, database):
+    def __init__(self, config, storage, database, classifier=None):
         self.config = config
         self.storage = storage
         self.database = database
@@ -23,7 +29,7 @@ class ReplayEvaluator:
             taxonomy_path = Path(__file__).resolve().parents[4] / config.taxonomy.config_path
         self.taxonomy = TaxonomyMapper(taxonomy_path)
         self.preprocessor = FramePreprocessor(config.inference.preprocessing)
-        self.classifier = HeuristicSignClassifier()
+        self.classifier = classifier
 
     def evaluate_trip(self, trip_id: str, *, export: bool = True) -> dict:
         detections = self.database.detections_for_trip(trip_id)
@@ -82,7 +88,7 @@ class ReplayEvaluator:
                 confidence=row.get("detector_confidence") or 0.0,
             )
 
-            classified = self.classifier.classify(processed, candidate)
+            classified = self._classifier().classify(processed, candidate)
             taxonomy = self.taxonomy.map_label(classified.raw_label)
 
             result["evaluated_detections"] += 1
@@ -130,6 +136,26 @@ class ReplayEvaluator:
         if path.is_absolute():
             return path
         return self.storage.base_dir / path
+
+    def _classifier(self):
+        if self.classifier is None:
+            self.classifier = _build_replay_classifier(self.config)
+        return self.classifier
+
+
+def _build_replay_classifier(config):
+    backend = config.inference.classifier_backend.lower()
+    if backend == "yolo":
+        return UltralyticsCropClassifier(
+            model_path=resolve_repo_path(config.inference.classifier_model_path),
+            imgsz=config.inference.classifier_imgsz,
+            verbose=config.inference.model_verbose,
+        )
+    if backend in {"none", "disabled", "detector_label"}:
+        return DetectorLabelClassifier()
+    if backend == "mock_classifier":
+        return MockSignClassifier()
+    raise ValueError(f"unsupported classifier backend: {config.inference.classifier_backend}")
 
 
 def _bbox_from_row(row: dict) -> tuple[int, int, int, int] | None:

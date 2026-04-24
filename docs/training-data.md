@@ -1,8 +1,7 @@
 # Training Data Plan
 
-Signomat currently runs a heuristic detector and classifier on the Pi. This
-document defines the first training-data stack for replacing that with a
-broader, recall-heavy model.
+Signomat now defaults to the learned detector and classifier on the Pi. This
+document tracks the training-data stack behind that broader, recall-heavy model.
 
 ## Selected Datasets
 
@@ -45,21 +44,34 @@ Broad families still tracked in the normalized manifest:
 This keeps recall high and lets review or later classifiers sort detections into
 more specific sign families after capture.
 
-## Immediate Runtime Changes
+## Runtime Capture Policy
 
-The Pi runtime has been loosened to better match that strategy:
+The Pi runtime now keeps normal drives focused on higher-confidence detections:
 
 - `save_unknown_signs: true`
-- lower detector/classifier thresholds
-- new sign-like color proposals for `green`, `white`, and `orange`
-- new broad raw labels for:
+- `save_crops: false`
+- `min_box_area: 900`
+- `min_detector_confidence: 0.6`
+- `min_classifier_confidence: 0.75`
+
+Unknown signs that clear the detector threshold are still saved for collection;
+full clean and annotated frames remain available for review, but sign crop files
+and crop thumbnails are not written during normal drives. YOLO detections smaller
+than `min_box_area` are filtered before classification, which removes tiny
+far-field or speck-like boxes;
+lower thresholds should be used only for intentional review or training-data
+collection runs. The broader detector/classifier work still supports:
+
+- mock detector/classifier support for sign-like color proposals such as `green`,
+  `white`, and `orange`
+- broad raw labels such as:
   - `guide_sign`
   - `regulatory_rect`
   - `service_sign`
   - `work_zone_sign`
 
-This is still heuristic, but it is now much closer to “detect first, sort
-later.”
+The live Pi path is learned-model first; the mock detector/classifier path is
+retained only for mock/dev runs and explicit simulator experiments.
 
 ## Workspace Setup
 
@@ -132,8 +144,8 @@ The learned classifier stays architecturally separate from the detector:
 - classifier: smaller crop model that runs on detector crops and can be disabled with `SIGNOMAT_CLASSIFIER_BACKEND=none`
 
 The default Pi config uses the learned NCNN exports in `models/`. If the ML
-runtime is missing or the model path is unavailable, the runtime logs a warning
-and falls back to the heuristic implementation.
+runtime is missing or the model path is unavailable, startup should fail loudly
+instead of silently switching to the mock detector/classifier implementation.
 
 ### Starter U.S. Classifier Taxonomy
 
@@ -206,6 +218,27 @@ When ready, the intended training path is:
 ```bash
 . .venv/bin/activate
 yolo classify train \
+
+### Archive Review To Detector Dataset
+
+Once you have reviewed detections in the archive site and created a detector
+training draft, you can turn that site export directly into a YOLO dataset with:
+
+```bash
+. .venv/bin/activate
+python scripts/export_yolo_detection_dataset.py \
+  --archive-export-url "https://signomat-api.example.workers.dev/admin/training/jobs/job_x/export" \
+  --output-dir data/training/exports/job_x \
+  --image-mode copy
+```
+
+That archive mode will:
+
+- download the reviewed detection export JSON from the Worker
+- download the referenced frame images into a local cache
+- write YOLO labels for confirmed signs
+- write empty label files for `false_positive` review rows so detector training
+  can learn negative frames from your own drives
   model=yolo11n-cls.pt \
   data=data/training/exports/classifier_dataset_raw_min100 \
   imgsz=224 \

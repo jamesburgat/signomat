@@ -23,6 +23,7 @@ class AppSection(BaseModel):
     base_data_dir: str = "/data/signomat"
     log_level: str = "INFO"
     wifi_interface: str = "wlan0"
+    low_memory_warn_mb: int = 512
 
 
 class CameraSection(BaseModel):
@@ -59,21 +60,18 @@ class PreprocessingSection(BaseModel):
     downscale_width: int = 960
     color_normalization: bool = True
     contrast_normalization: bool = True
-    red_blue_yellow_priors: bool = True
-    shape_priors: bool = True
-    day_night_preset: str = "auto"
 
 
 class InferenceSection(BaseModel):
     enabled: bool = True
     interval_seconds: float = 0.35
-    save_crops: bool = True
-    save_unknown_signs: bool = False
+    save_crops: bool = False
+    save_unknown_signs: bool = True
     thumbnail_max_edge: int = 480
-    detector_backend: str = "heuristic"
+    detector_backend: str = "yolo"
     detector_model_path: str = "models/sign_detector_yolo11n_any_sign_ncnn_model"
     detector_imgsz: int = 640
-    classifier_backend: str = "heuristic"
+    classifier_backend: str = "yolo"
     classifier_model_path: str = "models/sign_classifier_yolo11n_raw_min100_ncnn_model"
     classifier_imgsz: int = 224
     model_verbose: bool = False
@@ -81,8 +79,8 @@ class InferenceSection(BaseModel):
     min_box_area: int = 900
     max_box_area_ratio: float = 0.12
     min_box_fill_ratio: float = 0.2
-    min_detector_confidence: float = 0.58
-    min_classifier_confidence: float = 0.7
+    min_detector_confidence: float = 0.6
+    min_classifier_confidence: float = 0.75
     border_ignore_margin_px: int = 6
     dedupe_window_seconds: float = 6.0
     dedupe_iou_threshold: float = 0.25
@@ -203,6 +201,7 @@ def env_overrides() -> dict[str, Any]:
         "base_data_dir": _env_text("SIGNOMAT_BASE_DATA_DIR"),
         "log_level": _env_text("SIGNOMAT_LOG_LEVEL"),
         "wifi_interface": _env_text("SIGNOMAT_WIFI_INTERFACE"),
+        "low_memory_warn_mb": _env_int("SIGNOMAT_LOW_MEMORY_WARN_MB"),
     }
     for key, value in app_mapping.items():
         if value is not None:
@@ -242,6 +241,9 @@ def env_overrides() -> dict[str, Any]:
         "classifier_imgsz": _env_int("SIGNOMAT_CLASSIFIER_IMGSZ"),
         "model_verbose": _env_bool("SIGNOMAT_MODEL_VERBOSE"),
         "interval_seconds": _env_float("SIGNOMAT_INFERENCE_INTERVAL_SECONDS"),
+        "save_crops": _env_bool("SIGNOMAT_SAVE_CROPS"),
+        "save_unknown_signs": _env_bool("SIGNOMAT_SAVE_UNKNOWN_SIGNS"),
+        "min_box_area": _env_int("SIGNOMAT_MIN_BOX_AREA"),
         "min_detector_confidence": _env_float("SIGNOMAT_MIN_DETECTOR_CONFIDENCE"),
         "min_classifier_confidence": _env_float("SIGNOMAT_MIN_CLASSIFIER_CONFIDENCE"),
     }

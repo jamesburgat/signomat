@@ -20,13 +20,23 @@ struct DeviceStatusPayload: Codable {
     var inf: Bool
     var sync: String
     var tempC: Double?
+    var alert: StatusAlertPayload?
 
     enum CodingKeys: String, CodingKey {
         case ble
         case inf
         case sync
         case tempC = "temp_c"
+        case alert
     }
+}
+
+struct StatusAlertPayload: Codable, Equatable {
+    var id: String
+    var level: String
+    var symbol: String?
+    var title: String
+    var message: String
 }
 
 struct SessionStatePayload: Codable {
@@ -137,6 +147,7 @@ struct LiveStatus {
     var lon: Double?
     var spd: Double?
     var head: Double?
+    var alert: StatusAlertPayload?
 
     static let empty = LiveStatus()
 
@@ -145,6 +156,7 @@ struct LiveStatus {
         inf = payload.inf
         sync = payload.sync
         tempC = payload.tempC
+        alert = payload.alert
     }
 
     mutating func merge(_ payload: SessionStatePayload) {

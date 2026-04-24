@@ -41,6 +41,7 @@ def device_status_payload(status: dict[str, Any]) -> dict[str, Any]:
         "inf": status["inference_active"],
         "sync": status["sync_status"],
         "temp_c": status["pi_temperature_c"],
+        "alert": status.get("primary_alert"),
     }
 
 

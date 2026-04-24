@@ -90,6 +90,11 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
             first_chunk = next(response.iter_bytes())
             assert b"Content-Type: image/jpeg" in first_chunk
 
+        preview_still = client.get("/preview.jpg")
+        assert preview_still.status_code == 200
+        assert preview_still.headers["content-type"].startswith("image/jpeg")
+        assert preview_still.content[:2] == b"\xff\xd8"
+
         recent_videos = client.get("/video/recent").json()
         assert recent_videos
         trip_id = recent_videos[0]["trip_id"]

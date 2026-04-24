@@ -1,4 +1,25 @@
-from signomat_pi.ble_control_service.protocol import detection_summary_payload
+from signomat_pi.ble_control_service.protocol import detection_summary_payload, device_status_payload
+
+
+def test_device_status_includes_primary_alert():
+    payload = device_status_payload(
+        {
+            "ble_connected": True,
+            "inference_active": True,
+            "sync_status": "idle",
+            "pi_temperature_c": 42.0,
+            "primary_alert": {
+                "id": "memory_low",
+                "level": "warning",
+                "symbol": "!",
+                "title": "Memory low",
+                "message": "400 MB available",
+            },
+        }
+    )
+
+    assert payload["alert"]["id"] == "memory_low"
+    assert payload["alert"]["title"] == "Memory low"
 
 
 def test_detection_summary_includes_recent_classified_signs():

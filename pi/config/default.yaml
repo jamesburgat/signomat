@@ -35,7 +35,7 @@ gps:
 inference:
   enabled: true
   interval_seconds: 0.35
-  save_crops: true
+  save_crops: false
   save_unknown_signs: true
   thumbnail_max_edge: 480
   detector_backend: yolo
@@ -49,8 +49,8 @@ inference:
   min_box_area: 900
   max_box_area_ratio: 0.12
   min_box_fill_ratio: 0.2
-  min_detector_confidence: 0.25
-  min_classifier_confidence: 0.0
+  min_detector_confidence: 0.6
+  min_classifier_confidence: 0.75
   border_ignore_margin_px: 6
   dedupe_window_seconds: 6.0
   dedupe_iou_threshold: 0.25
@@ -58,9 +58,6 @@ inference:
     downscale_width: 960
     color_normalization: true
     contrast_normalization: true
-    red_blue_yellow_priors: true
-    shape_priors: true
-    day_night_preset: auto
 
 api:
   host: 0.0.0.0

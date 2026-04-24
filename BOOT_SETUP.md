@@ -18,8 +18,9 @@ This installs `signomat.service` for the packaged runtime and keeps using
 `/etc/default/signomat` for camera overrides.
 
 The `ml` extra installs the optional Ultralytics/NCNN runtime used by the
-learned detector and classifier. Without it, Signomat will fall back to the
-heuristic pipeline.
+learned detector and classifier. The default Pi runtime expects those learned
+models to load; use `pi/config/mock.yaml` when you intentionally want the
+mock detector/classifier dev path.
 
 The installer also creates the runtime data directory. By default that is
 `/data/signomat`. If you prefer a user-writable path, set
@@ -119,8 +120,12 @@ SIGNOMAT_DETECTOR_BACKEND=yolo
 SIGNOMAT_DETECTOR_MODEL_PATH=models/sign_detector_yolo11n_any_sign_ncnn_model
 SIGNOMAT_CLASSIFIER_BACKEND=yolo
 SIGNOMAT_CLASSIFIER_MODEL_PATH=models/sign_classifier_yolo11n_raw_min100_ncnn_model
-SIGNOMAT_MIN_DETECTOR_CONFIDENCE=0.25
-SIGNOMAT_MIN_CLASSIFIER_CONFIDENCE=0.0
+SIGNOMAT_SAVE_CROPS=false
+SIGNOMAT_SAVE_UNKNOWN_SIGNS=true
+SIGNOMAT_LOW_MEMORY_WARN_MB=512
+SIGNOMAT_MIN_BOX_AREA=900
+SIGNOMAT_MIN_DETECTOR_CONFIDENCE=0.6
+SIGNOMAT_MIN_CLASSIFIER_CONFIDENCE=0.75
 ```
 
 If the classifier uses too much memory on the Pi, keep the learned detector and

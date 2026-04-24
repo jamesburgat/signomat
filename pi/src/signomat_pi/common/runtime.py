@@ -62,7 +62,7 @@ class SignomatRuntime:
         self.capture_service = CaptureService(config, self.storage, self.database)
         self.gps_service = GPSService(config, self.storage, self.database)
         self.inference_service = InferenceService(config, self.storage, self.database, self.capture_service, self.gps_service, RuntimeCallbacks(self))
-        self.replay_evaluator = ReplayEvaluator(config, self.storage, self.database)
+        self.replay_evaluator = ReplayEvaluator(config, self.storage, self.database, classifier=self.inference_service.classifier)
         self.ble_service = BLEControlService(config, self)
         if self.lcd.enabled and not self.lcd.available and self.lcd.error:
             LOGGER.warning("LCD unavailable: %s", self.lcd.error)
@@ -299,6 +299,87 @@ class SignomatRuntime:
         except ValueError:
             return None
 
+    def memory_status(self) -> dict[str, int | None]:
+        values: dict[str, int | None] = {"available_mb": None, "total_mb": None}
+        path = Path("/proc/meminfo")
+        if not path.exists():
+            return values
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            key, _, rest = line.partition(":")
+            if key not in {"MemAvailable", "MemTotal"}:
+                continue
+            parts = rest.strip().split()
+            if not parts:
+                continue
+            try:
+                mb = int(parts[0]) // 1024
+            except ValueError:
+                continue
+            if key == "MemAvailable":
+                values["available_mb"] = mb
+            elif key == "MemTotal":
+                values["total_mb"] = mb
+        return values
+
+    def system_alerts(self, storage: dict | None = None, sync: dict | None = None, memory: dict | None = None) -> list[dict]:
+        storage = storage or self.storage.storage_status()
+        sync = sync or self.sync_service.status()
+        memory = memory or self.memory_status()
+        alerts: list[dict] = []
+        inference = self.inference_service.status()
+        if inference["health"] != "ok":
+            alerts.append(
+                {
+                    "id": "inference_error",
+                    "level": "critical",
+                    "symbol": "/!\\",
+                    "title": "YOLO fault",
+                    "message": inference["last_error"] or "Inference model unavailable",
+                    "lcd_title": "YOLO fault",
+                    "lcd_message": f"Model error: {inference['last_error'] or 'inference unavailable'}",
+                }
+            )
+        free_mb = storage.get("free_mb", 0)
+        if free_mb < self.config.camera.low_storage_stop_mb:
+            alerts.append(
+                {
+                    "id": "storage_low",
+                    "level": "warning",
+                    "symbol": "/!\\",
+                    "title": "Storage low",
+                    "message": f"{free_mb} MB free",
+                    "lcd_title": "Low storage",
+                    "lcd_message": f"{free_mb}MB free below {self.config.camera.low_storage_stop_mb}MB stop limit",
+                }
+            )
+        available_mb = memory.get("available_mb")
+        if available_mb is not None and available_mb < self.config.app.low_memory_warn_mb:
+            alerts.append(
+                {
+                    "id": "memory_low",
+                    "level": "warning",
+                    "symbol": "/!\\",
+                    "title": "Memory low",
+                    "message": f"{available_mb} MB available",
+                    "lcd_title": "Low memory",
+                    "lcd_message": f"{available_mb}MB RAM below {self.config.app.low_memory_warn_mb}MB warning",
+                }
+            )
+        if sync.get("last_result") == "error":
+            sync_error = sync.get("last_error") or "Upload sync failed"
+            alerts.append(
+                {
+                    "id": "sync_error",
+                    "level": "warning",
+                    "symbol": "/!\\",
+                    "title": "Sync error",
+                    "message": sync_error,
+                    "lcd_title": "Sync error",
+                    "lcd_message": f"Upload failed: {sync_error}",
+                }
+            )
+        return alerts
+
     def wifi_connected(self) -> bool:
         now = time.monotonic()
         if now - self._wifi_checked_at < 5.0:
@@ -322,6 +403,8 @@ class SignomatRuntime:
     def status_snapshot(self) -> dict:
         storage = self.storage.storage_status()
         sync = self.sync_service.status()
+        memory = self.memory_status()
+        alerts = self.system_alerts(storage=storage, sync=sync, memory=memory)
         if self.current_trip_id:
             sign_categories = self.database.detection_category_counts_for_trip(self.current_trip_id)
             recent_signs = self.database.recent_detections_for_trip(self.current_trip_id)
@@ -339,20 +422,25 @@ class SignomatRuntime:
             "trip_sign_categories": sign_categories,
             "trip_recent_signs": recent_signs,
             "storage": storage,
+            "memory": memory,
             "upload_queue_size": sync.get("total", 0),
             "sync_status": sync["last_result"],
             "gps_health": self.gps_service.health,
             "pi_temperature_c": self.temperature_c(),
+            "inference_health": self.inference_service.status(),
+            "alerts": alerts,
+            "primary_alert": alerts[0] if alerts else None,
             "ble_connected": self.ble_service.connected if self.config.ble.enabled else False,
             "wifi_connected": self.wifi_connected(),
         }
 
     def health(self) -> dict:
         return {
-            "ok": True,
+            "ok": not bool(self.system_alerts(storage=self.storage.storage_status())),
             "camera": self.capture_service.camera.describe(),
             "gps_health": self.gps_service.health,
             "trip_active": bool(self.current_trip_id),
+            "primary_alert": self.status_snapshot()["primary_alert"],
             "storage": self.storage.storage_status(),
         }
 
@@ -362,6 +450,7 @@ class SignomatRuntime:
         if self.last_detection:
             last_label = self.last_detection["specific_label"] or self.last_detection["category_label"]
         sync_status = self.sync_service.status()["last_result"]
+        primary_alert = self.status_snapshot()["primary_alert"]
         self.lcd.update_runtime(
             gps_health=self.gps_service.health,
             speed_mps=gps.speed if gps else None,
@@ -373,6 +462,7 @@ class SignomatRuntime:
             ble_connected=self.ble_service.connected if self.config.ble.enabled else False,
             wifi_connected=self.wifi_connected(),
             sync_status=sync_status,
+            alert=primary_alert,
         )
 
     def _lcd_loop(self) -> None:

@@ -38,6 +38,6 @@ Then open `http://127.0.0.1:8080/docs` for the local API when running in mock mo
 ## Training Direction
 
 - The default Pi runtime uses the learned one-class `sign` detector and learned crop classifier when the `ml` extras are installed.
-- If the ML runtime or model files are unavailable, the Pi runtime falls back to heuristic detection/classification.
+- The default Pi runtime expects the learned model files to load; mock/dev configs can still opt into the mock detector/classifier explicitly.
 - The learned detector is trained on `Mapillary + GLARE`; the learned classifier is trained on data-driven raw-label crops.
 - Dataset and label-planning details live in `docs/training-data.md`.
