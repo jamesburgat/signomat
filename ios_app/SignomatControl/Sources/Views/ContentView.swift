@@ -4,6 +4,22 @@ import MapKit
 import SwiftUI
 
 struct ContentView: View {
+    var body: some View {
+        TabView {
+            ControlDashboardView()
+                .tabItem {
+                    Label("Control", systemImage: "dot.radiowaves.left.and.right")
+                }
+
+            ReviewTrainingView()
+                .tabItem {
+                    Label("Review", systemImage: "checklist")
+                }
+        }
+    }
+}
+
+struct ControlDashboardView: View {
     @EnvironmentObject private var viewModel: StatusViewModel
     @AppStorage("previewBaseURL") private var previewBaseURL = "http://signomat.local:8000"
     @AppStorage("previewMaxWidth") private var previewMaxWidth = 960
