@@ -54,6 +54,7 @@ class SignomatRuntime:
         self.detection_count_trip = 0
         self.last_detection: dict | None = None
         self._wifi_connected = False
+        self._wifi_ipv4: str | None = None
         self._wifi_checked_at = 0.0
         self.lcd = LCDStatusDisplay()
         self.lcd_running = threading.Event()
@@ -380,25 +381,55 @@ class SignomatRuntime:
             )
         return alerts
 
-    def wifi_connected(self) -> bool:
+    def _refresh_network_state(self) -> None:
         now = time.monotonic()
         if now - self._wifi_checked_at < 5.0:
-            return self._wifi_connected
+            return
         interface = self.config.app.wifi_interface
         self._wifi_checked_at = now
         if not interface:
             self._wifi_connected = False
-            return False
+            self._wifi_ipv4 = None
+            return
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             packed = struct.pack("256s", interface[:15].encode("utf-8"))
-            fcntl.ioctl(sock.fileno(), 0x8915, packed)
+            response = fcntl.ioctl(sock.fileno(), 0x8915, packed)
             self._wifi_connected = True
+            self._wifi_ipv4 = socket.inet_ntoa(response[20:24])
         except OSError:
             self._wifi_connected = False
+            self._wifi_ipv4 = None
         finally:
             sock.close()
+
+    def wifi_connected(self) -> bool:
+        self._refresh_network_state()
         return self._wifi_connected
+
+    def wifi_ipv4_address(self) -> str | None:
+        self._refresh_network_state()
+        return self._wifi_ipv4
+
+    def preview_hostname(self) -> str | None:
+        hostname = socket.gethostname().strip()
+        if not hostname:
+            return None
+        if hostname.endswith(".local") or "." in hostname:
+            return hostname
+        return f"{hostname}.local"
+
+    def preview_base_url(self) -> str | None:
+        hostname = self.preview_hostname()
+        if not hostname:
+            return None
+        return f"http://{hostname}:{self.config.api.port}"
+
+    def preview_fallback_base_url(self) -> str | None:
+        ip_address = self.wifi_ipv4_address()
+        if not ip_address:
+            return None
+        return f"http://{ip_address}:{self.config.api.port}"
 
     def status_snapshot(self) -> dict:
         storage = self.storage.storage_status()
@@ -432,6 +463,8 @@ class SignomatRuntime:
             "primary_alert": alerts[0] if alerts else None,
             "ble_connected": self.ble_service.connected if self.config.ble.enabled else False,
             "wifi_connected": self.wifi_connected(),
+            "preview_base_url": self.preview_base_url(),
+            "preview_fallback_base_url": self.preview_fallback_base_url(),
         }
 
     def health(self) -> dict:

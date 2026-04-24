@@ -21,6 +21,8 @@ struct DeviceStatusPayload: Codable {
     var sync: String
     var tempC: Double?
     var alert: StatusAlertPayload?
+    var previewBaseURL: String?
+    var previewFallbackBaseURL: String?
 
     enum CodingKeys: String, CodingKey {
         case ble
@@ -28,6 +30,8 @@ struct DeviceStatusPayload: Codable {
         case sync
         case tempC = "temp_c"
         case alert
+        case previewBaseURL = "preview_base_url"
+        case previewFallbackBaseURL = "preview_fallback_base_url"
     }
 }
 
@@ -148,6 +152,8 @@ struct LiveStatus {
     var spd: Double?
     var head: Double?
     var alert: StatusAlertPayload?
+    var previewBaseURL: String?
+    var previewFallbackBaseURL: String?
 
     static let empty = LiveStatus()
 
@@ -157,6 +163,8 @@ struct LiveStatus {
         sync = payload.sync
         tempC = payload.tempC
         alert = payload.alert
+        previewBaseURL = payload.previewBaseURL
+        previewFallbackBaseURL = payload.previewFallbackBaseURL
     }
 
     mutating func merge(_ payload: SessionStatePayload) {

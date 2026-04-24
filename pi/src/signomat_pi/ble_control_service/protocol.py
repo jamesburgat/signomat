@@ -42,6 +42,8 @@ def device_status_payload(status: dict[str, Any]) -> dict[str, Any]:
         "sync": status["sync_status"],
         "temp_c": status["pi_temperature_c"],
         "alert": status.get("primary_alert"),
+        "preview_base_url": status.get("preview_base_url"),
+        "preview_fallback_base_url": status.get("preview_fallback_base_url"),
     }
 
 

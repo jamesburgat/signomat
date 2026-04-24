@@ -19,5 +19,6 @@ open SignomatControl.xcodeproj
 - show core runtime status
 - send the required control commands
 - show a lightweight pre-drive preview by loading still frames from the Pi local API
+- learn the Pi preview address over BLE so the app can suggest `.local` or the current Wi-Fi IP automatically
 - include a second tab for archive sign confirmation and training draft creation against the Worker API
 - no BLE media transport yet; use the Pi local `/preview` or `/preview.jpg` endpoints for troubleshooting

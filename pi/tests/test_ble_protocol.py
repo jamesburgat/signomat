@@ -8,6 +8,8 @@ def test_device_status_includes_primary_alert():
             "inference_active": True,
             "sync_status": "idle",
             "pi_temperature_c": 42.0,
+            "preview_base_url": "http://cornichon.local:8080",
+            "preview_fallback_base_url": "http://10.1.76.38:8080",
             "primary_alert": {
                 "id": "memory_low",
                 "level": "warning",
@@ -20,6 +22,8 @@ def test_device_status_includes_primary_alert():
 
     assert payload["alert"]["id"] == "memory_low"
     assert payload["alert"]["title"] == "Memory low"
+    assert payload["preview_base_url"] == "http://cornichon.local:8080"
+    assert payload["preview_fallback_base_url"] == "http://10.1.76.38:8080"
 
 
 def test_detection_summary_includes_recent_classified_signs():

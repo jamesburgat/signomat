@@ -22,6 +22,7 @@ struct ContentView: View {
 struct ControlDashboardView: View {
     @EnvironmentObject private var viewModel: StatusViewModel
     @AppStorage("previewBaseURL") private var previewBaseURL = "http://signomat.local:8080"
+    @AppStorage("lastDetectedPreviewBaseURL") private var lastDetectedPreviewBaseURL = ""
     @AppStorage("previewMaxWidth") private var previewMaxWidth = 960
     @State private var previewRevision = UUID().uuidString
 
@@ -48,6 +49,15 @@ struct ControlDashboardView: View {
                 .padding(20)
             }
             .navigationTitle("Signomat")
+            .onAppear {
+                applySuggestedPreviewURLIfNeeded()
+            }
+            .onChange(of: viewModel.manager.status.previewBaseURL) { _, _ in
+                applySuggestedPreviewURLIfNeeded()
+            }
+            .onChange(of: viewModel.manager.status.previewFallbackBaseURL) { _, _ in
+                applySuggestedPreviewURLIfNeeded()
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(connectButtonLabel) {
@@ -83,6 +93,32 @@ struct ControlDashboardView: View {
                 .autocorrectionDisabled()
                 .keyboardType(.URL)
                 .textFieldStyle(.roundedBorder)
+
+            if let discoveredPreviewBaseURL {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Discovered over BLE: \(discoveredPreviewBaseURL)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 10) {
+                        Button("Use Pi Address") {
+                            previewBaseURL = discoveredPreviewBaseURL
+                            lastDetectedPreviewBaseURL = discoveredPreviewBaseURL
+                            refreshPreview()
+                        }
+                        .buttonStyle(.bordered)
+
+                        if let fallbackPreviewBaseURL, fallbackPreviewBaseURL != discoveredPreviewBaseURL {
+                            Button("Use Current Pi IP") {
+                                previewBaseURL = fallbackPreviewBaseURL
+                                lastDetectedPreviewBaseURL = fallbackPreviewBaseURL
+                                refreshPreview()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
 
             HStack(spacing: 10) {
                 Button("Refresh Frame") {
@@ -473,10 +509,51 @@ struct ControlDashboardView: View {
     }
 
     private var normalizedPreviewBaseURL: URL? {
-        let trimmed = previewBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        sanitizedPreviewBaseURL(from: previewBaseURL)
+    }
+
+    private var discoveredPreviewBaseURL: String? {
+        canonicalPreviewBaseURLString(from: viewModel.manager.status.previewBaseURL)
+            ?? canonicalPreviewBaseURLString(from: viewModel.manager.status.previewFallbackBaseURL)
+    }
+
+    private var fallbackPreviewBaseURL: String? {
+        canonicalPreviewBaseURLString(from: viewModel.manager.status.previewFallbackBaseURL)
+    }
+
+    private func sanitizedPreviewBaseURL(from rawValue: String) -> URL? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let candidate = trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") ? trimmed : "http://\(trimmed)"
-        return URL(string: candidate)
+        guard var components = URLComponents(string: candidate) else { return nil }
+
+        var path = components.percentEncodedPath
+        for suffix in ["/preview.jpg", "/preview.mjpg", "/preview"] {
+            if path.hasSuffix(suffix) {
+                path.removeLast(suffix.count)
+                break
+            }
+        }
+        while path.count > 1 && path.hasSuffix("/") {
+            path.removeLast()
+        }
+        if path == "/" {
+            path = ""
+        }
+
+        components.percentEncodedPath = path
+        components.query = nil
+        components.fragment = nil
+        return components.url
+    }
+
+    private func canonicalPreviewBaseURLString(from rawValue: String?) -> String? {
+        guard let rawValue, let url = sanitizedPreviewBaseURL(from: rawValue) else { return nil }
+        var text = url.absoluteString
+        if text.hasSuffix("/") {
+            text.removeLast()
+        }
+        return text
     }
 
     private var previewSnapshotURL: URL? {
@@ -495,5 +572,19 @@ struct ControlDashboardView: View {
 
     private func refreshPreview() {
         previewRevision = UUID().uuidString
+    }
+
+    private func applySuggestedPreviewURLIfNeeded() {
+        guard let suggestedPreviewBaseURL = discoveredPreviewBaseURL else { return }
+        let currentPreviewBaseURL = canonicalPreviewBaseURLString(from: previewBaseURL)
+        let previousDetectedPreviewBaseURL = canonicalPreviewBaseURLString(from: lastDetectedPreviewBaseURL)
+        let defaultPreviewBaseURL = canonicalPreviewBaseURLString(from: "http://signomat.local:8080")
+
+        if currentPreviewBaseURL == nil ||
+            currentPreviewBaseURL == defaultPreviewBaseURL ||
+            currentPreviewBaseURL == previousDetectedPreviewBaseURL {
+            previewBaseURL = suggestedPreviewBaseURL
+            lastDetectedPreviewBaseURL = suggestedPreviewBaseURL
+        }
     }
 }
