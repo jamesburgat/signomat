@@ -7,17 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		172F7F198B1A4E18B1CC87A7 /* ArchiveAdminViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A99110312A0A4E0EB4F1AFD3 /* ArchiveAdminViewModel.swift */; };
 		48D78CB0C0EAC6C9AAFA40F8 /* SignomatControlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA7AB24B0E3266B3460A540 /* SignomatControlApp.swift */; };
 		5C13AF58470E21892A48D425 /* StatusViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497CBB191313354EC6F66BFD /* StatusViewModel.swift */; };
 		77D25FB0CD2C6FFB7F0F8D53 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76FC7E8DEEFDF89A83F5880 /* ContentView.swift */; };
 		BB9B300D0FBFA55E8380995E /* BLEProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA593E53BFCC2CD205EBC8F /* BLEProtocol.swift */; };
 		E1680D59EAC8D93F1B76376D /* BLEManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3C515D1EF4D77775B5F9AE8 /* BLEManager.swift */; };
+		F4E95B61CB2D4AF89C29E3A4 /* ReviewTrainingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F2F035BDDA4B86A8D476A9 /* ReviewTrainingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		35C455D9EB77A2E57F721ACB /* SignomatControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SignomatControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		497CBB191313354EC6F66BFD /* StatusViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewModel.swift; sourceTree = "<group>"; };
 		8BA7AB24B0E3266B3460A540 /* SignomatControlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignomatControlApp.swift; sourceTree = "<group>"; };
+		A99110312A0A4E0EB4F1AFD3 /* ArchiveAdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveAdminViewModel.swift; sourceTree = "<group>"; };
+		C6F2F035BDDA4B86A8D476A9 /* ReviewTrainingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewTrainingView.swift; sourceTree = "<group>"; };
 		E76FC7E8DEEFDF89A83F5880 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F3C515D1EF4D77775B5F9AE8 /* BLEManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEManager.swift; sourceTree = "<group>"; };
 		FAA593E53BFCC2CD205EBC8F /* BLEProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEProtocol.swift; sourceTree = "<group>"; };
@@ -27,6 +31,7 @@
 		0494B4B88B9D3F8DA3FFC4D5 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				A99110312A0A4E0EB4F1AFD3 /* ArchiveAdminViewModel.swift */,
 				F3C515D1EF4D77775B5F9AE8 /* BLEManager.swift */,
 				FAA593E53BFCC2CD205EBC8F /* BLEProtocol.swift */,
 				497CBB191313354EC6F66BFD /* StatusViewModel.swift */,
@@ -38,6 +43,7 @@
 			isa = PBXGroup;
 			children = (
 				E76FC7E8DEEFDF89A83F5880 /* ContentView.swift */,
+				C6F2F035BDDA4B86A8D476A9 /* ReviewTrainingView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -130,9 +136,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				172F7F198B1A4E18B1CC87A7 /* ArchiveAdminViewModel.swift in Sources */,
 				E1680D59EAC8D93F1B76376D /* BLEManager.swift in Sources */,
 				BB9B300D0FBFA55E8380995E /* BLEProtocol.swift in Sources */,
 				77D25FB0CD2C6FFB7F0F8D53 /* ContentView.swift in Sources */,
+				F4E95B61CB2D4AF89C29E3A4 /* ReviewTrainingView.swift in Sources */,
 				48D78CB0C0EAC6C9AAFA40F8 /* SignomatControlApp.swift in Sources */,
 				5C13AF58470E21892A48D425 /* StatusViewModel.swift in Sources */,
 			);
