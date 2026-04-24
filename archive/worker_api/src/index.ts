@@ -240,6 +240,12 @@ async function handlePublicDetections(ctx: RouteContext): Promise<Response> {
        bbox_top,
        bbox_right,
        bbox_bottom,
+       annotated_frame_bucket,
+       annotated_frame_key,
+       clean_frame_bucket,
+       clean_frame_key,
+       sign_crop_bucket,
+       sign_crop_key,
        annotated_thumb_bucket,
        annotated_thumb_key,
        clean_thumb_bucket,
@@ -356,6 +362,12 @@ async function handlePublicTripDetail(ctx: RouteContext, tripId: string): Promis
        bbox_top,
        bbox_right,
        bbox_bottom,
+       annotated_frame_bucket,
+       annotated_frame_key,
+       clean_frame_bucket,
+       clean_frame_key,
+       sign_crop_bucket,
+       sign_crop_key,
        annotated_thumb_bucket,
        annotated_thumb_key,
        clean_thumb_bucket,
@@ -506,6 +518,12 @@ async function handleAdminReviewQueue(ctx: RouteContext): Promise<Response> {
        bbox_top,
        bbox_right,
        bbox_bottom,
+       annotated_frame_bucket,
+       annotated_frame_key,
+       clean_frame_bucket,
+       clean_frame_key,
+       sign_crop_bucket,
+       sign_crop_key,
        annotated_thumb_bucket,
        annotated_thumb_key,
        clean_thumb_bucket,
@@ -574,6 +592,16 @@ async function handleAdminTrainingSummary(ctx: RouteContext): Promise<Response> 
      ORDER BY review_state ASC`
   ).all<Record<string, unknown>>();
 
+  const precisionRow = await ctx.env.ARCHIVE_DB.prepare(
+    `SELECT
+       SUM(CASE WHEN review_state = 'reviewed' THEN 1 ELSE 0 END) AS confirmed_sign_count,
+       SUM(CASE WHEN review_state = 'false_positive' THEN 1 ELSE 0 END) AS false_positive_count,
+       AVG(CASE WHEN review_state = 'reviewed' THEN detector_confidence END) AS avg_confirmed_detector_confidence,
+       AVG(CASE WHEN review_state = 'false_positive' THEN detector_confidence END) AS avg_false_positive_detector_confidence
+     FROM detections
+     WHERE review_state IN ('reviewed', 'false_positive')`
+  ).first<Record<string, unknown>>();
+
   const categories = await ctx.env.ARCHIVE_DB.prepare(
     `SELECT category_label, COUNT(*) AS count
      FROM detections
@@ -592,12 +620,25 @@ async function handleAdminTrainingSummary(ctx: RouteContext): Promise<Response> 
      LIMIT 20`
   ).all<Record<string, unknown>>();
 
+  const confirmedSignCount = asNumber(precisionRow?.confirmed_sign_count, 0);
+  const falsePositiveCount = asNumber(precisionRow?.false_positive_count, 0);
+  const reviewedSampleSize = confirmedSignCount + falsePositiveCount;
+  const reviewedPrecisionEstimate = reviewedSampleSize > 0 ? confirmedSignCount / reviewedSampleSize : null;
+
   return json({
     ok: true,
     reviewCounts: (reviewCounts.results ?? []).map((row) => ({
       reviewState: row.review_state,
       count: asNumber(row.count, 0),
     })),
+    modelMetrics: {
+      reviewedSampleSize,
+      confirmedSignCount,
+      falsePositiveCount,
+      reviewedPrecisionEstimate,
+      avgConfirmedDetectorConfidence: asNullableNumber(precisionRow?.avg_confirmed_detector_confidence),
+      avgFalsePositiveDetectorConfidence: asNullableNumber(precisionRow?.avg_false_positive_detector_confidence),
+    },
     topReviewedCategories: (categories.results ?? []).map((row) => ({
       categoryLabel: row.category_label,
       count: asNumber(row.count, 0),
@@ -789,6 +830,9 @@ function serializeDetectionCard(env: Env, row: DetectionRow): JsonObject {
     bboxTop: asNullableNumber(row.bbox_top),
     bboxRight: asNullableNumber(row.bbox_right),
     bboxBottom: asNullableNumber(row.bbox_bottom),
+    annotatedFrameUrl: publicAssetUrl(env, row.annotated_frame_bucket, row.annotated_frame_key),
+    cleanFrameUrl: publicAssetUrl(env, row.clean_frame_bucket, row.clean_frame_key),
+    signCropUrl: publicAssetUrl(env, row.sign_crop_bucket, row.sign_crop_key),
     annotatedThumbnailUrl: publicAssetUrl(env, row.annotated_thumb_bucket, row.annotated_thumb_key),
     cleanThumbnailUrl: publicAssetUrl(env, row.clean_thumb_bucket, row.clean_thumb_key),
     signCropThumbnailUrl: publicAssetUrl(env, row.sign_crop_thumb_bucket, row.sign_crop_thumb_key),
@@ -800,9 +844,6 @@ function serializeDetectionCard(env: Env, row: DetectionRow): JsonObject {
 function serializeDetectionDetail(env: Env, row: DetectionRow): JsonObject {
   return {
     ...serializeDetectionCard(env, row),
-    annotatedFrameUrl: publicAssetUrl(env, row.annotated_frame_bucket, row.annotated_frame_key),
-    cleanFrameUrl: publicAssetUrl(env, row.clean_frame_bucket, row.clean_frame_key),
-    signCropUrl: publicAssetUrl(env, row.sign_crop_bucket, row.sign_crop_key),
     videoSegmentId: asNullableString(row.video_segment_id),
     videoTimestampOffsetMs: asNullableNumber(row.video_timestamp_offset_ms),
     dedupeGroupId: asNullableString(row.dedupe_group_id),

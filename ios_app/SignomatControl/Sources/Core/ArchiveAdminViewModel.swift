@@ -6,6 +6,7 @@ final class ArchiveAdminViewModel: ObservableObject {
     @Published var trips: [ArchiveTripSummary] = []
     @Published var reviewCounts: [ArchiveReviewCount] = []
     @Published var trainingJobs: [ArchiveTrainingJob] = []
+    @Published var modelMetrics = ArchiveModelMetrics.empty
     @Published var isLoading = false
     @Published var statusMessage: String?
     @Published var errorMessage: String?
@@ -29,6 +30,7 @@ final class ArchiveAdminViewModel: ObservableObject {
             let (queueResponse, summaryResponse, jobsResponse, tripsResponse) = try await (queue, summary, jobs, tripPayload)
             reviewQueue = queueResponse.detections
             reviewCounts = summaryResponse.reviewCounts
+            modelMetrics = summaryResponse.modelMetrics
             trainingJobs = jobsResponse.jobs
             trips = tripsResponse.trips
             statusMessage = "Loaded archive review and training data."
@@ -173,6 +175,7 @@ struct ArchiveReviewQueueResponse: Decodable {
 
 struct ArchiveTrainingSummaryResponse: Decodable {
     let reviewCounts: [ArchiveReviewCount]
+    let modelMetrics: ArchiveModelMetrics
 }
 
 struct ArchiveTrainingJobsResponse: Decodable {
@@ -185,6 +188,24 @@ struct ArchiveTripsResponse: Decodable {
 
 struct ArchiveTrainingJobCreateResponse: Decodable {
     let job: ArchiveTrainingJob
+}
+
+struct ArchiveModelMetrics: Decodable {
+    let reviewedSampleSize: Int
+    let confirmedSignCount: Int
+    let falsePositiveCount: Int
+    let reviewedPrecisionEstimate: Double?
+    let avgConfirmedDetectorConfidence: Double?
+    let avgFalsePositiveDetectorConfidence: Double?
+
+    static let empty = ArchiveModelMetrics(
+        reviewedSampleSize: 0,
+        confirmedSignCount: 0,
+        falsePositiveCount: 0,
+        reviewedPrecisionEstimate: nil,
+        avgConfirmedDetectorConfidence: nil,
+        avgFalsePositiveDetectorConfidence: nil
+    )
 }
 
 struct ArchiveDetectionDetailResponse: Decodable {
@@ -249,6 +270,9 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
     let bboxTop: Double?
     let bboxRight: Double?
     let bboxBottom: Double?
+    let annotatedFrameUrl: String?
+    let cleanFrameUrl: String?
+    let signCropUrl: String?
     let annotatedThumbnailUrl: String?
     let cleanThumbnailUrl: String?
     let signCropThumbnailUrl: String?
@@ -259,7 +283,7 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
     var eventID: String { eventId }
 
     var bestThumbnailURL: URL? {
-        let raw = cleanThumbnailUrl ?? annotatedThumbnailUrl ?? signCropThumbnailUrl
+        let raw = cleanThumbnailUrl ?? annotatedThumbnailUrl ?? signCropThumbnailUrl ?? cleanFrameUrl ?? annotatedFrameUrl ?? signCropUrl
         guard let raw, !raw.isEmpty else { return nil }
         return URL(string: raw)
     }

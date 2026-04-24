@@ -21,7 +21,7 @@ struct ContentView: View {
 
 struct ControlDashboardView: View {
     @EnvironmentObject private var viewModel: StatusViewModel
-    @AppStorage("previewBaseURL") private var previewBaseURL = "http://signomat.local:8000"
+    @AppStorage("previewBaseURL") private var previewBaseURL = "http://signomat.local:8080"
     @AppStorage("previewMaxWidth") private var previewMaxWidth = 960
     @State private var previewRevision = UUID().uuidString
 
@@ -130,7 +130,7 @@ struct ControlDashboardView: View {
             } else {
                 previewPlaceholder(
                     title: "Enter a Pi URL",
-                    message: "Example: http://signomat.local:8000 or http://192.168.4.1:8000"
+                    message: "Example: http://signomat.local:8080 or http://192.168.1.42:8080"
                 )
             }
 

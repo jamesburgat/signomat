@@ -254,8 +254,12 @@ async function renderDetectionDetail(eventId) {
 }
 
 async function renderReview() {
-  const payload = await apiFetch("/admin/review/queue?limit=80");
+  const [payload, summaryPayload] = await Promise.all([
+    apiFetch("/admin/review/queue?limit=80"),
+    apiFetch("/admin/training/summary"),
+  ]);
   const detections = payload.detections || [];
+  const metrics = summaryPayload.modelMetrics || {};
 
   app.innerHTML = `
     <div class="review-layout">
@@ -263,9 +267,15 @@ async function renderReview() {
         <div class="panel-head">
           <div>
             <p class="eyebrow">Admin Review</p>
-            <h2>Mark good detections, false positives, and quick relabel notes.</h2>
+            <h2>Review images first, confirm sign or not-sign fast, and keep training setup secondary.</h2>
           </div>
-          <span class="status-line">Minimal mode, no auth yet.</span>
+          <span class="status-line">Precision is based on reviewed samples only.</span>
+        </div>
+        <div class="stats-grid">
+          <div class="stat"><span class="muted">Reviewed sample</span><strong>${metrics.reviewedSampleSize || 0}</strong></div>
+          <div class="stat"><span class="muted">Confirmed signs</span><strong>${metrics.confirmedSignCount || 0}</strong></div>
+          <div class="stat"><span class="muted">False positives</span><strong>${metrics.falsePositiveCount || 0}</strong></div>
+          <div class="stat"><span class="muted">Current YOLO precision</span><strong>${metrics.reviewedPrecisionEstimate != null ? `${Math.round(metrics.reviewedPrecisionEstimate * 100)}%` : "n/a"}</strong></div>
         </div>
         <div id="review-status" class="status-line">Queue loaded from ${escapeHtml(state.apiBase)}</div>
         <div class="list">
@@ -296,9 +306,9 @@ async function renderTraining() {
         <div class="panel-head">
           <div>
             <p class="eyebrow">Training Lab</p>
-            <h2>Draft a training batch from reviewed archive data.</h2>
+            <h2>Secondary workflow: draft exports after the image review pass is in good shape.</h2>
           </div>
-          <span class="status-line">This creates exportable job specs, not remote training.</span>
+          <span class="status-line">Best handled mostly through code and local training runs.</span>
         </div>
 
         <div class="stats-grid">
@@ -503,7 +513,7 @@ function renderVideoSegmentCard(segment) {
 }
 
 function renderReviewCard(detection) {
-  const thumb = detection.cleanThumbnailUrl || detection.annotatedThumbnailUrl || detection.signCropThumbnailUrl;
+  const thumb = bestReviewImageUrl(detection);
   return `
     <article class="card" data-review-card="${escapeHtml(detection.eventId)}">
       <div class="card-grid">
@@ -538,6 +548,18 @@ function renderReviewCard(detection) {
       </div>
     </article>
   `;
+}
+
+function bestReviewImageUrl(detection) {
+  return (
+    detection.cleanThumbnailUrl ||
+    detection.annotatedThumbnailUrl ||
+    detection.signCropThumbnailUrl ||
+    detection.cleanFrameUrl ||
+    detection.annotatedFrameUrl ||
+    detection.signCropUrl ||
+    null
+  );
 }
 
 function renderTrainingJobCard(job) {

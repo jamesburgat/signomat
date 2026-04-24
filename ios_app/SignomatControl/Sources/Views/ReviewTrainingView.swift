@@ -17,13 +17,13 @@ struct ReviewTrainingView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     apiCard
                     summaryCard
-                    trainingDraftCard
                     reviewQueueCard
+                    trainingDraftCard
                     trainingJobsCard
                 }
                 .padding(20)
             }
-            .navigationTitle("Review + Train")
+            .navigationTitle("Sign Review")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Refresh") {
@@ -102,28 +102,21 @@ struct ReviewTrainingView: View {
 
     private var summaryCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Review Snapshot")
+            Text("Current YOLO Precision")
                 .font(.headline)
 
-            if viewModel.reviewCounts.isEmpty {
-                Text("No archive summary loaded yet.")
+            VStack(alignment: .leading, spacing: 10) {
+                Text(precisionTitle)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Text("Estimate is based only on detections you’ve reviewed as confirmed signs or false positives.")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
-            } else {
+
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    ForEach(viewModel.reviewCounts) { item in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(item.reviewState.title)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(item.count)")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                        .background(Color.secondary.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                    }
+                    metricTile(title: "Reviewed Sample", value: "\(viewModel.modelMetrics.reviewedSampleSize)")
+                    metricTile(title: "Confirmed Signs", value: "\(viewModel.modelMetrics.confirmedSignCount)")
+                    metricTile(title: "False Positives", value: "\(viewModel.modelMetrics.falsePositiveCount)")
                 }
             }
         }
@@ -135,10 +128,10 @@ struct ReviewTrainingView: View {
 
     private var trainingDraftCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Create Training Draft")
+            Text("Training Drafts")
                 .font(.headline)
 
-            Text("Detector drafts are the quickest path for teaching the model what is and isn’t a sign. Classifier drafts are better once your labels are stable.")
+            Text("This is secondary here. Use it when you want to hand reviewed data back to the code-driven training pipeline.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
@@ -201,7 +194,7 @@ struct ReviewTrainingView: View {
     private var reviewQueueCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Sign Confirmation Queue")
+                Text("Image Review Queue")
                     .font(.headline)
                 Spacer()
                 Text("\(viewModel.reviewQueue.count)")
@@ -248,7 +241,7 @@ struct ReviewTrainingView: View {
 
     private var trainingJobsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Training Drafts")
+            Text("Existing Drafts")
                 .font(.headline)
 
             if viewModel.trainingJobs.isEmpty {
@@ -302,6 +295,28 @@ struct ReviewTrainingView: View {
         .background(.thinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
     }
+
+    private var precisionTitle: String {
+        guard let precision = viewModel.modelMetrics.reviewedPrecisionEstimate else {
+            return "Review more images to measure sign precision."
+        }
+        return String(format: "%.1f%% sign precision on reviewed samples", precision * 100)
+    }
+
+    private func metricTile(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.title2)
+                .fontWeight(.bold)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color.secondary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
 }
 
 private struct DetectionReviewCard: View {
@@ -314,7 +329,7 @@ private struct DetectionReviewCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 previewImage
-                    .frame(width: 110, height: 82)
+                    .frame(width: 132, height: 100)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -384,8 +399,13 @@ private struct DetectionReviewCard: View {
     private var imagePlaceholder: some View {
         ZStack {
             Color.secondary.opacity(0.15)
-            Image(systemName: "photo")
-                .foregroundStyle(.secondary)
+            VStack(spacing: 6) {
+                Image(systemName: "photo")
+                    .foregroundStyle(.secondary)
+                Text("No Cloudflare image")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
