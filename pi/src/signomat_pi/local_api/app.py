@@ -284,33 +284,25 @@ def create_app(runtime) -> FastAPI:
               <div>
                 <img src="/preview.mjpg" style="display:block;max-width:100%;height:auto;border:1px solid #333;" />
               </div>
-              <div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:16px;">
-                <h2 style="margin-top:0;">Camera Tuning</h2>
-                <p style="color:#bbb;font-size:14px;">Apply live exposure changes for the running session. These updates do not survive a service restart yet.</p>
-                <div id="camera-status" style="min-height:20px;color:#9fe870;margin-bottom:12px;"></div>
-                <div style="display:grid;gap:10px;">
-                  <label><input id="auto_exposure" type="checkbox" /> Auto exposure</label>
-                  <label>Exposure compensation
-                    <input id="exposure_compensation" type="number" step="0.1" style="width:100%;margin-top:4px;" />
-                  </label>
-                  <label>Exposure time (us)
-                    <input id="exposure_time_us" type="number" step="100" style="width:100%;margin-top:4px;" />
-                  </label>
-                  <label>Analogue gain
-                    <input id="analogue_gain" type="number" step="0.1" style="width:100%;margin-top:4px;" />
-                  </label>
-                  <label>Brightness
-                    <input id="brightness" type="number" step="0.01" style="width:100%;margin-top:4px;" />
-                  </label>
-                  <label>Contrast
-                    <input id="contrast" type="number" step="0.01" style="width:100%;margin-top:4px;" />
-                  </label>
+              <div style="display:grid;gap:16px;">
+                <div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:16px;">
+                  <h2 style="margin-top:0;">Camera Exposure Audit</h2>
+                  <p style="color:#bbb;font-size:14px;">Forced exposure, gain, brightness, and contrast adjustments are disabled. The app now leaves camera hardware controls unmanaged.</p>
+                  <div id="camera-status" style="min-height:20px;color:#9fe870;margin-bottom:12px;"></div>
+                  <div id="camera-audit" style="display:grid;gap:8px;color:#ddd;font-size:14px;"></div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+                    <button type="button" onclick="loadCameraTuning()" style="padding:8px 12px;">Refresh</button>
+                  </div>
                 </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
-                  <button type="button" onclick="applyPreset('day')" style="padding:8px 12px;">Day</button>
-                  <button type="button" onclick="applyPreset('night')" style="padding:8px 12px;">Night</button>
-                  <button type="button" onclick="saveCameraTuning()" style="padding:8px 12px;">Apply</button>
-                  <button type="button" onclick="loadCameraTuning()" style="padding:8px 12px;">Refresh</button>
+                <div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:16px;">
+                  <h2 style="margin-top:0;">Post-Trip Classification</h2>
+                  <p style="color:#bbb;font-size:14px;">Strong frames are classified after trips end, then written back into the trip records.</p>
+                  <div id="classification-status" style="min-height:20px;color:#9fe870;margin-bottom:12px;"></div>
+                  <div id="classification-audit" style="display:grid;gap:8px;color:#ddd;font-size:14px;"></div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+                    <button id="classification-refresh" type="button" onclick="loadClassificationStatus()" style="padding:8px 12px;">Refresh</button>
+                    <button id="classification-run" type="button" onclick="runClassification()" style="padding:8px 12px;">Run Pending Trip</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -319,52 +311,56 @@ def create_app(runtime) -> FastAPI:
                 const response = await fetch('/camera/tuning');
                 const payload = await response.json();
                 const tuning = payload.tuning;
-                document.getElementById('auto_exposure').checked = !!tuning.auto_exposure;
-                document.getElementById('exposure_compensation').value = tuning.exposure_compensation ?? 0;
-                document.getElementById('exposure_time_us').value = tuning.exposure_time_us ?? '';
-                document.getElementById('analogue_gain').value = tuning.analogue_gain ?? '';
-                document.getElementById('brightness').value = tuning.brightness ?? 0;
-                document.getElementById('contrast').value = tuning.contrast ?? 1;
                 document.getElementById('camera-status').textContent = payload.message || '';
-              }
-              function applyPreset(name) {
-                if (name === 'day') {
-                  document.getElementById('auto_exposure').checked = false;
-                  document.getElementById('exposure_compensation').value = 0;
-                  document.getElementById('exposure_time_us').value = 9000;
-                  document.getElementById('analogue_gain').value = 4.0;
-                  document.getElementById('brightness').value = 0.08;
-                  document.getElementById('contrast').value = 1.12;
-                } else if (name === 'night') {
-                  document.getElementById('auto_exposure').checked = false;
-                  document.getElementById('exposure_compensation').value = 0;
-                  document.getElementById('exposure_time_us').value = 18000;
-                  document.getElementById('analogue_gain').value = 8.0;
-                  document.getElementById('brightness').value = 0.12;
-                  document.getElementById('contrast').value = 1.18;
-                }
-              }
-              async function saveCameraTuning() {
-                const payload = {
-                  auto_exposure: document.getElementById('auto_exposure').checked,
-                  exposure_compensation: Number(document.getElementById('exposure_compensation').value || 0),
-                  exposure_time_us: document.getElementById('exposure_time_us').value ? Number(document.getElementById('exposure_time_us').value) : null,
-                  analogue_gain: document.getElementById('analogue_gain').value ? Number(document.getElementById('analogue_gain').value) : null,
-                  brightness: Number(document.getElementById('brightness').value || 0),
-                  contrast: Number(document.getElementById('contrast').value || 1),
-                };
-                const response = await fetch('/camera/tuning', {
-                  method: 'POST',
-                  headers: {'Content-Type': 'application/json'},
-                  body: JSON.stringify(payload),
-                });
-                const result = await response.json();
-                document.getElementById('camera-status').textContent = result.message || 'Camera tuning updated';
-                await loadCameraTuning();
+                document.getElementById('camera-audit').innerHTML = [
+                  `Backend: ${tuning.backend ?? 'unknown'}`,
+                  `Forced adjustments supported: ${tuning.forced_adjustments_supported ? 'yes' : 'no'}`,
+                  `Forced adjustments active: ${tuning.forced_adjustments_active ? 'yes' : 'no'}`,
+                  'Startup camera control writes: disabled',
+                  'Live exposure presets: removed',
+                  'Live tuning POST path: disabled'
+                ].map((line) => `<div>${line}</div>`).join('');
               }
               loadCameraTuning().catch((err) => {
                 document.getElementById('camera-status').textContent = String(err);
               });
+              function renderPendingTrips(pendingTrips) {
+                if (!pendingTrips.length) {
+                  return 'Pending trips: none';
+                }
+                return `Pending trips: ${pendingTrips.map((trip) => `${trip.trip_id} (${trip.pending_groups} groups)`).join(', ')}`;
+              }
+              async function loadClassificationStatus() {
+                const response = await fetch('/classification/status');
+                const payload = await response.json();
+                const running = payload.running ? 'yes' : 'no';
+                const trip = payload.current_trip_id ?? payload.last_completed_trip_id ?? 'none';
+                const stage = payload.current_stage ?? payload.state ?? 'idle';
+                const progress = payload.total_groups ? `${payload.processed_groups}/${payload.total_groups} (${payload.progress_pct}%)` : 'n/a';
+                document.getElementById('classification-status').textContent = payload.last_error || `State: ${payload.state}`;
+                document.getElementById('classification-audit').innerHTML = [
+                  `Running: ${running}`,
+                  `Trip: ${trip}`,
+                  `Stage: ${stage}`,
+                  `Progress: ${progress}`,
+                  `Last completed at: ${payload.last_completed_at ?? 'n/a'}`,
+                  renderPendingTrips(payload.pending_trips || []),
+                ].map((line) => `<div>${line}</div>`).join('');
+                const runButton = document.getElementById('classification-run');
+                runButton.disabled = payload.running || !(payload.launchable || (payload.pending_trips || []).length);
+              }
+              async function runClassification() {
+                const response = await fetch('/classification/run', {method: 'POST'});
+                const payload = await response.json();
+                document.getElementById('classification-status').textContent = payload.message || `Queued ${payload.trip_id ?? ''}`.trim();
+                await loadClassificationStatus();
+              }
+              loadClassificationStatus().catch((err) => {
+                document.getElementById('classification-status').textContent = String(err);
+              });
+              setInterval(() => {
+                loadClassificationStatus().catch(() => {});
+              }, 3000);
             </script>
           </body>
         </html>
@@ -417,6 +413,14 @@ def create_app(runtime) -> FastAPI:
     @app.post("/replay/{trip_id}")
     def replay_trip(trip_id: str, export: bool = True):
         return runtime.replay_trip(trip_id, export=export)
+
+    @app.get("/classification/status")
+    def classification_status():
+        return runtime.classification_status()
+
+    @app.post("/classification/run")
+    def classification_run(trip_id: str | None = None):
+        return runtime.run_post_trip_classification(trip_id)
 
     @app.get("/config")
     def config():

@@ -67,6 +67,11 @@ class InferenceSection(BaseModel):
     interval_seconds: float = 0.35
     save_crops: bool = False
     save_unknown_signs: bool = True
+    save_clean_frame: bool = True
+    save_clean_thumbnail: bool = True
+    save_annotated_frame: bool = False
+    save_annotated_thumbnail: bool = False
+    save_crop_thumbnail: bool = False
     thumbnail_max_edge: int = 480
     detector_backend: str = "yolo"
     detector_model_path: str = "models/sign_detector_yolo11n_any_sign_ncnn_model"
@@ -216,12 +221,6 @@ def env_overrides() -> dict[str, Any]:
         "fps": _env_int("SIGNOMAT_CAMERA_FPS"),
         "warmup_seconds": _env_float("SIGNOMAT_CAMERA_WARMUP_SECONDS"),
         "chunk_seconds": _env_int("SIGNOMAT_CAMERA_CHUNK_SECONDS"),
-        "auto_exposure": _env_bool("SIGNOMAT_CAMERA_AUTO_EXPOSURE"),
-        "exposure_compensation": _env_float("SIGNOMAT_CAMERA_EXPOSURE_COMPENSATION"),
-        "brightness": _env_float("SIGNOMAT_CAMERA_BRIGHTNESS"),
-        "contrast": _env_float("SIGNOMAT_CAMERA_CONTRAST"),
-        "exposure_time_us": _env_int("SIGNOMAT_CAMERA_EXPOSURE_TIME_US"),
-        "analogue_gain": _env_float("SIGNOMAT_CAMERA_ANALOGUE_GAIN"),
     }
     for key, value in mapping.items():
         if value is not None:

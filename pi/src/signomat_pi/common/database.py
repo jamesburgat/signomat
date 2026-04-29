@@ -4,6 +4,7 @@ import json
 import logging
 import sqlite3
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +57,17 @@ class Database:
             self.connection.execute(sql, params)
             self.connection.commit()
 
+    @contextmanager
+    def transaction(self):
+        with self.lock:
+            try:
+                yield self.connection
+            except Exception:
+                self.connection.rollback()
+                raise
+            else:
+                self.connection.commit()
+
     def query_one(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Row | None:
         with self.lock:
             cursor = self.connection.execute(sql, params)
@@ -67,9 +79,18 @@ class Database:
             return list(cursor.fetchall())
 
     def recover_interrupted_trips(self) -> None:
+        now = utc_now_text()
         self.execute(
-            "UPDATE trips SET status='interrupted', ended_at_utc=? WHERE status='active'",
-            (utc_now_text(),),
+            """
+            UPDATE trips
+            SET status='interrupted',
+                ended_at_utc=CASE
+                  WHEN started_at_utc > ? THEN started_at_utc
+                  ELSE ?
+                END
+            WHERE status='active'
+            """,
+            (now, now),
         )
 
     def create_trip(self, trip_id: str, recording_enabled: bool, inference_enabled: bool) -> None:
@@ -82,9 +103,18 @@ class Database:
         )
 
     def stop_trip(self, trip_id: str) -> None:
+        now = utc_now_text()
         self.execute(
-            "UPDATE trips SET status='stopped', ended_at_utc=? WHERE trip_id=?",
-            (utc_now_text(), trip_id),
+            """
+            UPDATE trips
+            SET status='stopped',
+                ended_at_utc=CASE
+                  WHEN started_at_utc > ? THEN started_at_utc
+                  ELSE ?
+                END
+            WHERE trip_id=?
+            """,
+            (now, now, trip_id),
         )
 
     def active_trip(self) -> sqlite3.Row | None:
@@ -144,10 +174,15 @@ class Database:
         self.execute(
             """
             UPDATE video_segments
-            SET end_timestamp_utc=?, file_size=?, duration_sec=?
+            SET end_timestamp_utc=CASE
+                  WHEN start_timestamp_utc > ? THEN start_timestamp_utc
+                  ELSE ?
+                END,
+                file_size=?,
+                duration_sec=?
             WHERE video_segment_id=?
             """,
-            (end_timestamp_utc, file_size, duration_sec, segment_id),
+            (end_timestamp_utc, end_timestamp_utc, file_size, duration_sec, segment_id),
         )
 
     def add_detection(self, payload: dict[str, Any]) -> None:
@@ -184,6 +219,59 @@ class Database:
             (queue_id, item_type, local_path, related_table, related_id, json_dumps(payload), now, now),
         )
         return queue_id
+
+    def persist_detection_bundle(
+        self,
+        payload: dict[str, Any],
+        media_paths: list[str],
+        *,
+        metadata_payload: dict[str, Any],
+    ) -> None:
+        columns = ", ".join(payload.keys())
+        placeholders = ", ".join(["?"] * len(payload))
+        now = utc_now_text()
+        with self.transaction() as connection:
+            connection.execute(
+                f"INSERT INTO detections({columns}) VALUES ({placeholders})",
+                tuple(payload.values()),
+            )
+            for local_path in media_paths:
+                connection.execute(
+                    """
+                    INSERT INTO upload_queue(
+                      queue_id, item_type, local_path, related_table, related_id, payload_json,
+                      state, retry_count, next_attempt_utc, last_error, created_at_utc, updated_at_utc
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)
+                    """,
+                    (
+                        stable_id("queue"),
+                        "media_asset",
+                        local_path,
+                        "detections",
+                        payload["event_id"],
+                        json_dumps({"trip_id": payload["trip_id"], "event_id": payload["event_id"]}),
+                        now,
+                        now,
+                    ),
+                )
+            connection.execute(
+                """
+                INSERT INTO upload_queue(
+                  queue_id, item_type, local_path, related_table, related_id, payload_json,
+                  state, retry_count, next_attempt_utc, last_error, created_at_utc, updated_at_utc
+                ) VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)
+                """,
+                (
+                    stable_id("queue"),
+                    "detection_metadata",
+                    None,
+                    "detections",
+                    payload["event_id"],
+                    json_dumps(metadata_payload),
+                    now,
+                    now,
+                ),
+            )
 
     def add_device_event(self, event_type: str, severity: str, message: str, details: dict[str, Any] | None = None) -> None:
         self.execute(
@@ -299,6 +387,18 @@ class Database:
         row = self.query_one("SELECT * FROM video_segments WHERE video_segment_id=?", (segment_id,))
         return dict(row) if row else None
 
+    def unfinished_video_segments(self) -> list[dict[str, Any]]:
+        return [
+            dict(row)
+            for row in self.query_all(
+                """
+                SELECT * FROM video_segments
+                WHERE end_timestamp_utc IS NULL
+                ORDER BY start_timestamp_utc ASC
+                """
+            )
+        ]
+
     def recent_trips(self, limit: int = 20) -> list[dict[str, Any]]:
         return [dict(row) for row in self.query_all("SELECT * FROM trips ORDER BY started_at_utc DESC LIMIT ?", (limit,))]
 
@@ -332,9 +432,21 @@ class Database:
             placeholders = ", ".join(["?"] * len(item_types))
             sql += f" AND item_type IN ({placeholders})"
             params.extend(item_types)
-        sql += " ORDER BY created_at_utc ASC LIMIT ?"
+        sql += " ORDER BY retry_count ASC, created_at_utc DESC LIMIT ?"
         params.append(limit)
         return [dict(row) for row in self.query_all(sql, tuple(params))]
+
+    def upload_item_exists(self, item_type: str, related_table: str, related_id: str) -> bool:
+        row = self.query_one(
+            """
+            SELECT 1
+            FROM upload_queue
+            WHERE item_type=? AND related_table=? AND related_id=?
+            LIMIT 1
+            """,
+            (item_type, related_table, related_id),
+        )
+        return row is not None
 
     def mark_upload_items_state(
         self,
@@ -444,3 +556,63 @@ class Database:
 
     def recent_device_events(self, limit: int = 20) -> list[dict[str, Any]]:
         return [dict(row) for row in self.query_all("SELECT * FROM device_events ORDER BY timestamp_utc DESC LIMIT ?", (limit,))]
+
+    def pending_post_classification_trips(self, limit: int = 10) -> list[dict[str, Any]]:
+        rows = self.query_all(
+            """
+            SELECT
+              t.trip_id,
+              t.status,
+              t.started_at_utc,
+              COUNT(d.event_id) AS pending_detections,
+              COUNT(DISTINCT COALESCE(d.dedupe_group_id, d.event_id)) AS pending_groups
+            FROM trips t
+            JOIN detections d ON d.trip_id = t.trip_id
+            WHERE t.status != 'active'
+              AND d.review_state = 'unreviewed'
+            GROUP BY t.trip_id, t.status, t.started_at_utc
+            ORDER BY t.started_at_utc DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return [dict(row) for row in rows]
+
+    def update_detections_classification(
+        self,
+        event_ids: list[str],
+        *,
+        raw_classifier_label: str,
+        classifier_confidence: float,
+        category_id: str,
+        category_label: str,
+        specific_label: str | None,
+        grouping_mode: str,
+        review_state: str,
+    ) -> None:
+        if not event_ids:
+            return
+        placeholders = ", ".join(["?"] * len(event_ids))
+        self.execute(
+            f"""
+            UPDATE detections
+            SET raw_classifier_label=?,
+                classifier_confidence=?,
+                category_id=?,
+                category_label=?,
+                specific_label=?,
+                grouping_mode=?,
+                review_state=?
+            WHERE event_id IN ({placeholders})
+            """,
+            (
+                raw_classifier_label,
+                classifier_confidence,
+                category_id,
+                category_label,
+                specific_label,
+                grouping_mode,
+                review_state,
+                *event_ids,
+            ),
+        )

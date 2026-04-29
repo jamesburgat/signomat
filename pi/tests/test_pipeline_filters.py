@@ -3,9 +3,11 @@ import numpy as np
 import pytest
 
 from signomat_pi.common.config import load_config
+from signomat_pi.common.storage import StorageManager
 from signomat_pi.common.models import DetectionCandidate
 from signomat_pi.inference_service import service as service_module
 from signomat_pi.inference_service.pipeline import (
+    AssetWriter,
     DetectorLabelClassifier,
     MockColorShapeDetector,
     MockSignClassifier,
@@ -21,6 +23,10 @@ def test_default_config_uses_learned_models_and_mock_config_keeps_mock_backends(
     assert default_config.inference.classifier_model_path.endswith("_ncnn_model")
     assert default_config.inference.save_crops is False
     assert default_config.inference.save_unknown_signs is True
+    assert default_config.inference.save_clean_frame is True
+    assert default_config.inference.save_clean_thumbnail is True
+    assert default_config.inference.save_annotated_frame is False
+    assert default_config.inference.save_annotated_thumbnail is False
 
     mock_config = load_config("pi/config/mock.yaml")
     assert mock_config.inference.detector_backend == "mock_detector"
@@ -140,3 +146,28 @@ def test_classifier_emits_broad_green_and_white_sign_categories():
     assert white_candidates
     white_label = classifier.classify(white_frame, white_candidates[0]).raw_label
     assert white_label == "regulatory_rect"
+
+
+def test_asset_writer_minimal_policy_skips_annotated_outputs(tmp_path):
+    config = load_config("pi/config/mock.yaml")
+    config.app.base_data_dir = str(tmp_path / "signomat-data")
+    storage = StorageManager(config)
+    storage.initialize()
+    writer = AssetWriter(storage, config.inference)
+    frame = np.zeros((120, 160, 3), dtype=np.uint8)
+
+    assets = writer.save_detection_assets(
+        trip_id="2026-04-29_trip_001",
+        event_id="event_test",
+        frame=frame,
+        bbox=(20, 20, 80, 80),
+        label="stop",
+        confidence=0.9,
+        save_crop=False,
+    )
+
+    assert assets.clean_frame_path is not None
+    assert assets.clean_thumbnail_path is not None
+    assert assets.annotated_frame_path is None
+    assert assets.annotated_thumbnail_path is None
+    assert assets.crop_path is None

@@ -1,6 +1,17 @@
 from signomat_pi.common import lcd as lcd_module
 
 
+class _FakeLCD:
+    def __init__(self):
+        self.backlight_enabled = True
+
+    def clear(self):
+        pass
+
+    def write_string(self, value):
+        pass
+
+
 def test_lcd_shows_stable_trip_count(monkeypatch):
     monkeypatch.setenv("SIGNOMAT_LCD_DRIVER", "off")
     display = lcd_module.LCDStatusDisplay()
@@ -17,8 +28,9 @@ def test_lcd_shows_stable_trip_count(monkeypatch):
         ble_connected=True,
         wifi_connected=False,
         sync_status="idle",
+        pi_mode="detecting",
     )
-    assert display._steady_lines[1].strip() == "Signs 004"
+    assert display._steady_lines[1].strip() == "Detect 004"
 
 
 def test_lcd_flashes_classified_sign(monkeypatch):
@@ -124,3 +136,83 @@ def test_lcd_alert_details_rotate_without_truncating_everything(monkeypatch):
     assert display._steady_lines[0].strip() == "/!\\ YOLO fault"
     assert first_page == "Model error:"
     assert display._steady_lines[1].strip() == "model path"
+
+
+def test_lcd_keeps_backlight_on_during_alerts_by_default(monkeypatch):
+    monkeypatch.setenv("SIGNOMAT_LCD_DRIVER", "off")
+    monkeypatch.delenv("SIGNOMAT_LCD_DIM_ALERTS", raising=False)
+    display = lcd_module.LCDStatusDisplay()
+    display.available = True
+    display.lcd = _FakeLCD()
+
+    display._set_alert_contrast(True)
+
+    assert display.lcd.backlight_enabled is True
+    assert display._last_alert_mode is True
+
+
+def test_lcd_shows_post_trip_classifier_progress(monkeypatch):
+    monkeypatch.setenv("SIGNOMAT_LCD_DRIVER", "off")
+    display = lcd_module.LCDStatusDisplay()
+
+    monkeypatch.setattr(lcd_module.time, "monotonic", lambda: 0.0)
+    display.update_runtime(
+        gps_health="fix",
+        speed_mps=None,
+        event_count=0,
+        last_label=None,
+        trip_active=False,
+        recording_active=False,
+        inference_active=True,
+        ble_connected=False,
+        wifi_connected=True,
+        sync_status="idle",
+        classification_status={"running": True, "processed_groups": 3, "total_groups": 12},
+    )
+
+    assert display._steady_lines[1].strip() == "Class 03/12"
+
+
+def test_lcd_shows_post_trip_classifier_ready(monkeypatch):
+    monkeypatch.setenv("SIGNOMAT_LCD_DRIVER", "off")
+    display = lcd_module.LCDStatusDisplay()
+
+    monkeypatch.setattr(lcd_module.time, "monotonic", lambda: 0.0)
+    display.update_runtime(
+        gps_health="fix",
+        speed_mps=None,
+        event_count=0,
+        last_label=None,
+        trip_active=False,
+        recording_active=False,
+        inference_active=True,
+        ble_connected=False,
+        wifi_connected=True,
+        sync_status="idle",
+        classification_status={"running": False, "pending_trip_count": 2},
+    )
+
+    assert display._steady_lines[1].strip() == "Classify ready"
+
+
+def test_lcd_shows_upload_backlog_when_idle(monkeypatch):
+    monkeypatch.setenv("SIGNOMAT_LCD_DRIVER", "off")
+    display = lcd_module.LCDStatusDisplay()
+
+    monkeypatch.setattr(lcd_module.time, "monotonic", lambda: 0.0)
+    display.update_runtime(
+        gps_health="fix",
+        speed_mps=None,
+        event_count=0,
+        last_label=None,
+        trip_active=False,
+        recording_active=False,
+        inference_active=True,
+        ble_connected=False,
+        wifi_connected=True,
+        sync_status="idle",
+        upload_status={"pending": 27},
+        pi_mode="uploading",
+    )
+
+    assert display._steady_lines[1].strip() == "Upload 027"

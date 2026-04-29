@@ -21,6 +21,16 @@ struct DeviceStatusPayload: Codable {
     var sync: String
     var tempC: Double?
     var alert: StatusAlertPayload?
+    var mode: String?
+    var modeDetail: String?
+    var classState: String?
+    var classRunning: Bool?
+    var classTripID: String?
+    var classProcessed: Int?
+    var classTotal: Int?
+    var classPct: Int?
+    var classPending: Int?
+    var classLaunchable: Bool?
     var previewBaseURL: String?
     var previewFallbackBaseURL: String?
 
@@ -30,6 +40,16 @@ struct DeviceStatusPayload: Codable {
         case sync
         case tempC = "temp_c"
         case alert
+        case mode
+        case modeDetail = "mode_detail"
+        case classState = "class_state"
+        case classRunning = "class_running"
+        case classTripID = "class_trip_id"
+        case classProcessed = "class_processed"
+        case classTotal = "class_total"
+        case classPct = "class_pct"
+        case classPending = "class_pending"
+        case classLaunchable = "class_launchable"
         case previewBaseURL = "preview_base_url"
         case previewFallbackBaseURL = "preview_fallback_base_url"
     }
@@ -105,6 +125,21 @@ struct DetectionSummaryPayload: Codable {
 struct UploadSummaryPayload: Codable {
     var queue: Int
     var sync: String
+    var pending: Int?
+    var synced: Int?
+    var total: Int?
+    var pct: Int?
+    var lastSyncedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case queue
+        case sync
+        case pending
+        case synced
+        case total
+        case pct
+        case lastSyncedAt = "last_synced_at"
+    }
 }
 
 struct StorageStatusPayload: Codable {
@@ -152,8 +187,23 @@ struct LiveStatus {
     var spd: Double?
     var head: Double?
     var alert: StatusAlertPayload?
+    var mode = "ready"
+    var modeDetail: String?
+    var classState: String?
+    var classRunning = false
+    var classTripID: String?
+    var classProcessed = 0
+    var classTotal = 0
+    var classPct = 0
+    var classPending = 0
+    var classLaunchable = false
     var previewBaseURL: String?
     var previewFallbackBaseURL: String?
+    var uploadPending = 0
+    var uploadSynced = 0
+    var uploadTotal = 0
+    var uploadPct = 0
+    var lastSyncedAt: String?
 
     static let empty = LiveStatus()
 
@@ -163,6 +213,16 @@ struct LiveStatus {
         sync = payload.sync
         tempC = payload.tempC
         alert = payload.alert
+        mode = payload.mode ?? mode
+        modeDetail = payload.modeDetail
+        classState = payload.classState
+        classRunning = payload.classRunning ?? classRunning
+        classTripID = payload.classTripID
+        classProcessed = payload.classProcessed ?? classProcessed
+        classTotal = payload.classTotal ?? classTotal
+        classPct = payload.classPct ?? classPct
+        classPending = payload.classPending ?? classPending
+        classLaunchable = payload.classLaunchable ?? classLaunchable
         previewBaseURL = payload.previewBaseURL
         previewFallbackBaseURL = payload.previewFallbackBaseURL
     }
@@ -185,6 +245,11 @@ struct LiveStatus {
     mutating func merge(_ payload: UploadSummaryPayload) {
         queue = payload.queue
         sync = payload.sync
+        uploadPending = payload.pending ?? uploadPending
+        uploadSynced = payload.synced ?? uploadSynced
+        uploadTotal = payload.total ?? uploadTotal
+        uploadPct = payload.pct ?? uploadPct
+        lastSyncedAt = payload.lastSyncedAt
     }
 
     mutating func merge(_ payload: StorageStatusPayload) {
@@ -222,6 +287,7 @@ enum SignomatCommand: String, CaseIterable, Identifiable {
     case stopRecording = "stop_recording"
     case enableInference = "enable_inference"
     case disableInference = "disable_inference"
+    case runPostTripClassification = "run_post_trip_classification"
     case saveDiagnosticSnapshot = "save_diagnostic_snapshot"
 
     var id: String { rawValue }
@@ -234,6 +300,7 @@ enum SignomatCommand: String, CaseIterable, Identifiable {
         case .stopRecording: return "Stop Recording"
         case .enableInference: return "Enable Inference"
         case .disableInference: return "Disable Inference"
+        case .runPostTripClassification: return "Run Classification"
         case .saveDiagnosticSnapshot: return "Save Diagnostic Snapshot"
         }
     }

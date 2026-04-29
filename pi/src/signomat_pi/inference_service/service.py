@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+import queue
 import threading
 import time
 from pathlib import Path
 
 from signomat_pi.common.config import resolve_repo_path
+from signomat_pi.common.models import DetectionWriteRequest
 from signomat_pi.common.storage import StorageManager
 from signomat_pi.common.utils import utc_now_text
 from signomat_pi.inference_service.pipeline import (
@@ -45,11 +47,14 @@ class InferenceService:
         self.last_error: str | None = None
         self._initialize_models()
         self.deduper = Deduplicator(config.inference.dedupe_window_seconds, config.inference.dedupe_iou_threshold)
-        self.assets = AssetWriter(storage, config.inference.thumbnail_max_edge)
+        self.assets = AssetWriter(storage, config.inference)
         self.running = threading.Event()
         self.enabled = config.inference.enabled
         self.thread: threading.Thread | None = None
+        self.writer_thread: threading.Thread | None = None
+        self.write_queue: queue.Queue[DetectionWriteRequest | None] = queue.Queue(maxsize=128)
         self.last_processed_frame_id = 0
+        self.last_writer_warning_at = 0.0
 
     def _initialize_models(self) -> None:
         try:
@@ -128,6 +133,8 @@ class InferenceService:
 
     def start(self) -> None:
         self.running.set()
+        self.writer_thread = threading.Thread(target=self._write_loop, name="detection-writer", daemon=True)
+        self.writer_thread.start()
         self.thread = threading.Thread(target=self._loop, name="inference-service", daemon=True)
         self.thread.start()
 
@@ -135,9 +142,73 @@ class InferenceService:
         self.running.clear()
         if self.thread:
             self.thread.join(timeout=3)
+        self.flush_detection_writes()
+        self.write_queue.put(None)
+        if self.writer_thread:
+            self.writer_thread.join(timeout=5)
 
     def set_enabled(self, enabled: bool) -> None:
         self.enabled = enabled
+
+    def flush_detection_writes(self) -> None:
+        self.write_queue.join()
+
+    def _write_loop(self) -> None:
+        while True:
+            request = self.write_queue.get()
+            try:
+                if request is None:
+                    return
+                assets = self.assets.save_detection_assets(
+                    trip_id=request.payload["trip_id"],
+                    event_id=request.payload["event_id"],
+                    frame=request.frame,
+                    bbox=request.bbox,
+                    label=request.label,
+                    confidence=request.confidence,
+                    save_crop=request.save_crop,
+                )
+                request.payload["annotated_frame_path"] = assets.annotated_frame_path
+                request.payload["clean_frame_path"] = assets.clean_frame_path
+                request.payload["sign_crop_path"] = assets.crop_path
+                request.payload["annotated_thumbnail_path"] = assets.annotated_thumbnail_path
+                request.payload["clean_thumbnail_path"] = assets.clean_thumbnail_path
+                request.payload["sign_crop_thumbnail_path"] = assets.crop_thumbnail_path
+                media_paths = [
+                    local_path
+                    for local_path in (
+                        assets.clean_frame_path,
+                        assets.annotated_frame_path,
+                        assets.crop_path,
+                        assets.clean_thumbnail_path,
+                        assets.annotated_thumbnail_path,
+                        assets.crop_thumbnail_path,
+                    )
+                    if local_path
+                ]
+                self.database.persist_detection_bundle(
+                    request.payload,
+                    media_paths,
+                    metadata_payload={"trip_id": request.payload["trip_id"], "event_id": request.payload["event_id"]},
+                )
+            except Exception as exc:  # pragma: no cover - defensive runtime path
+                LOGGER.exception("detection write failed: %s", exc)
+                self.database.add_device_event("inference.persistence_error", "error", str(exc))
+            finally:
+                self.write_queue.task_done()
+
+    def _enqueue_detection_write(self, request: DetectionWriteRequest) -> bool:
+        try:
+            self.write_queue.put_nowait(request)
+            return True
+        except queue.Full:
+            now = time.monotonic()
+            if now - self.last_writer_warning_at >= 30.0:
+                self.last_writer_warning_at = now
+                message = "detection write queue is full; dropping persisted detection work to protect live inference"
+                LOGGER.warning(message)
+                self.database.add_device_event("inference.persistence_backpressure", "warning", message)
+            return False
 
     def _loop(self) -> None:
         while self.running.is_set():
@@ -175,15 +246,6 @@ class InferenceService:
                                 )
                                 event_id = dedupe_ref
                                 group_id = self.deduper.group_id_for_event(event_id)
-                                assets = self.assets.save_detection_assets(
-                                    trip_id=trip_id,
-                                    event_id=event_id,
-                                    frame=processed,
-                                    bbox=candidate.bbox,
-                                    label=taxonomy.category_label,
-                                    confidence=classified.confidence,
-                                    save_crop=self.config.inference.save_crops,
-                                )
                                 gps = self.gps_service.latest_sample()
                                 segment_id, offset_ms = self.capture_service.current_segment_reference(packet.timestamp)
                                 payload = {
@@ -206,12 +268,12 @@ class InferenceService:
                                     "bbox_top": candidate.bbox[1],
                                     "bbox_right": candidate.bbox[2],
                                     "bbox_bottom": candidate.bbox[3],
-                                    "annotated_frame_path": assets.annotated_frame_path,
-                                    "clean_frame_path": assets.clean_frame_path,
-                                    "sign_crop_path": assets.crop_path,
-                                    "annotated_thumbnail_path": assets.annotated_thumbnail_path,
-                                    "clean_thumbnail_path": assets.clean_thumbnail_path,
-                                    "sign_crop_thumbnail_path": assets.crop_thumbnail_path,
+                                    "annotated_frame_path": None,
+                                    "clean_frame_path": None,
+                                    "sign_crop_path": None,
+                                    "annotated_thumbnail_path": None,
+                                    "clean_thumbnail_path": None,
+                                    "sign_crop_thumbnail_path": None,
                                     "video_segment_id": segment_id,
                                     "video_timestamp_offset_ms": offset_ms,
                                     "dedupe_group_id": group_id,
@@ -220,25 +282,18 @@ class InferenceService:
                                     "review_state": "unreviewed",
                                     "notes": None,
                                 }
-                                self.database.add_detection(payload)
-                                for local_path in (
-                                    assets.clean_frame_path,
-                                    assets.annotated_frame_path,
-                                    assets.crop_path,
-                                    assets.clean_thumbnail_path,
-                                    assets.annotated_thumbnail_path,
-                                    assets.crop_thumbnail_path,
-                                ):
-                                    if local_path:
-                                        self.database.enqueue_upload(
-                                            "media_asset",
-                                            local_path,
-                                            "detections",
-                                            event_id,
-                                            {"trip_id": trip_id, "event_id": event_id},
-                                        )
-                                self.database.enqueue_upload("detection_metadata", None, "detections", event_id, {"trip_id": trip_id})
-                                self.runtime_callbacks.on_detection(payload)
+                                queued = self._enqueue_detection_write(
+                                    DetectionWriteRequest(
+                                        payload=payload,
+                                        frame=processed.copy(),
+                                        bbox=candidate.bbox,
+                                        label=taxonomy.category_label,
+                                        confidence=classified.confidence,
+                                        save_crop=self.config.inference.save_crops,
+                                    )
+                                )
+                                if queued:
+                                    self.runtime_callbacks.on_detection(payload)
             except Exception as exc:  # pragma: no cover
                 self.health = "error"
                 self.last_error = str(exc)

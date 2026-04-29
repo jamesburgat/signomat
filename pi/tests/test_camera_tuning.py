@@ -18,12 +18,12 @@ def test_env_overrides_include_camera_tuning(monkeypatch):
 
     overrides = env_overrides()
 
-    assert overrides["camera"]["auto_exposure"] is False
-    assert overrides["camera"]["exposure_compensation"] == 1.25
-    assert overrides["camera"]["brightness"] == 0.2
-    assert overrides["camera"]["contrast"] == 1.4
-    assert overrides["camera"]["exposure_time_us"] == 12000
-    assert overrides["camera"]["analogue_gain"] == 2.5
+    assert "camera" not in overrides or "auto_exposure" not in overrides["camera"]
+    assert "camera" not in overrides or "exposure_compensation" not in overrides["camera"]
+    assert "camera" not in overrides or "brightness" not in overrides["camera"]
+    assert "camera" not in overrides or "contrast" not in overrides["camera"]
+    assert "camera" not in overrides or "exposure_time_us" not in overrides["camera"]
+    assert "camera" not in overrides or "analogue_gain" not in overrides["camera"]
     assert overrides["api"]["preview_max_width"] == 640
     assert overrides["app"]["low_memory_warn_mb"] == 768
     assert overrides["inference"]["save_crops"] is True

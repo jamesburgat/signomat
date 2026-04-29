@@ -36,12 +36,23 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
 
 
 def device_status_payload(status: dict[str, Any]) -> dict[str, Any]:
+    classification = status.get("classification_status") or {}
     return {
         "ble": status["ble_connected"],
         "inf": status["inference_active"],
         "sync": status["sync_status"],
         "temp_c": status["pi_temperature_c"],
         "alert": status.get("primary_alert"),
+        "mode": status.get("pi_mode"),
+        "mode_detail": status.get("pi_mode_detail"),
+        "class_state": classification.get("state"),
+        "class_running": classification.get("running"),
+        "class_trip_id": classification.get("current_trip_id"),
+        "class_processed": classification.get("processed_groups"),
+        "class_total": classification.get("total_groups"),
+        "class_pct": classification.get("progress_pct"),
+        "class_pending": classification.get("pending_trip_count"),
+        "class_launchable": classification.get("launchable"),
         "preview_base_url": status.get("preview_base_url"),
         "preview_fallback_base_url": status.get("preview_fallback_base_url"),
     }
@@ -76,9 +87,15 @@ def detection_summary_payload(status: dict[str, Any]) -> dict[str, Any]:
 
 
 def upload_summary_payload(status: dict[str, Any]) -> dict[str, Any]:
+    upload = status.get("upload_progress") or {}
     return {
         "queue": status["upload_queue_size"],
         "sync": status["sync_status"],
+        "pending": upload.get("pending", 0),
+        "synced": upload.get("synced", 0),
+        "total": upload.get("total", 0),
+        "pct": upload.get("progress_pct", 0),
+        "last_synced_at": upload.get("last_synced_at"),
     }
 
 

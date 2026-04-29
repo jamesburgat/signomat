@@ -1,17 +1,18 @@
 app:
   device_name: signomat-pi
-  base_data_dir: /data/signomat
+  base_data_dir: /home/jamesburgat/signomat-data
   log_level: INFO
   wifi_interface: wlan0
+  low_memory_warn_mb: 512
 
 camera:
-  backend: auto
+  backend: picamera2
   device: null
-  index: null
+  index: 0
   fourcc: null
   width: 1280
   height: 720
-  fps: 20
+  fps: 30
   rotation: 0
   codec: mp4v
   warmup_seconds: 1.0
@@ -34,9 +35,14 @@ gps:
 
 inference:
   enabled: true
-  interval_seconds: 0.35
+  interval_seconds: 0.2
   save_crops: false
   save_unknown_signs: true
+  save_clean_frame: true
+  save_clean_thumbnail: true
+  save_annotated_frame: false
+  save_annotated_thumbnail: false
+  save_crop_thumbnail: false
   thumbnail_max_edge: 480
   detector_backend: yolo
   detector_model_path: models/sign_detector_yolo11n_any_sign_ncnn_model
@@ -57,7 +63,7 @@ inference:
   preprocessing:
     downscale_width: 960
     color_normalization: true
-    contrast_normalization: true
+    contrast_normalization: false
 
 api:
   host: 0.0.0.0
@@ -67,19 +73,19 @@ api:
   preview_max_width: 960
 
 sync:
-  enabled: false
-  batch_size: 25
+  enabled: true
+  batch_size: 50
   base_url: null
   ingest_token: null
-  device_id: signomat-pi
-  interval_seconds: 60.0
+  device_id: cornichon
+  interval_seconds: 30.0
   request_timeout_seconds: 15.0
 
 ble:
-  enabled: false
-  mode: mock
+  enabled: true
+  mode: bluez
   adapter: hci0
-  advertise_name: null
+  advertise_name: signomat-pi
   discoverable: true
   pairable: false
   refresh_interval_seconds: 1.0

@@ -60,6 +60,16 @@ class SavedAssets:
 
 
 @dataclass(slots=True)
+class DetectionWriteRequest:
+    payload: dict[str, Any]
+    frame: np.ndarray
+    bbox: tuple[int, int, int, int]
+    label: str
+    confidence: float
+    save_crop: bool
+
+
+@dataclass(slots=True)
 class ActiveSegment:
     video_segment_id: str
     start_timestamp_utc: str

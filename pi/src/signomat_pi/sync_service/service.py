@@ -76,7 +76,8 @@ class SyncService:
         total_media = media_result["counts"]["items"]
         total_metadata = metadata_result["counts"]["items"]
         total_items = total_media + total_metadata
-        any_error = (not media_result["ok"]) or (not metadata_result["ok"])
+        any_error = media_result.get("hard_error", False) or metadata_result.get("hard_error", False)
+        any_deferred = media_result.get("deferred", False) or metadata_result.get("deferred", False)
         details = {
             "media": media_result,
             "metadata": metadata_result,
@@ -91,6 +92,10 @@ class SyncService:
             self.last_result = "partial" if (synced_media + synced_metadata) > 0 else "error"
             self.last_error = media_result.get("message") or metadata_result.get("message")
             return {"ok": False, "message": self.last_error, "counts": {"items": total_items}, "details": details}
+        if any_deferred:
+            self.last_result = "partial" if (synced_media + synced_metadata) > 0 else "deferred"
+            self.last_error = media_result.get("message") or metadata_result.get("message")
+            return {"ok": False, "message": self.last_error, "counts": {"items": total_items}, "details": details}
         self.last_result = "synced"
         self.last_error = None
         self.last_synced_at = _utc_now_text()
@@ -99,26 +104,35 @@ class SyncService:
     def _run_media_uploads(self) -> dict:
         media_items = self.database.pending_upload_items(
             limit=self.config.sync.batch_size,
-            item_types=("media_asset", "video_media"),
+            item_types=("media_asset",),
         )
+        remaining = max(0, self.config.sync.batch_size - len(media_items))
+        if remaining > 0:
+            media_items.extend(
+                self.database.pending_upload_items(
+                    limit=remaining,
+                    item_types=("video_media",),
+                )
+            )
         if not media_items:
             return {"ok": True, "counts": {"items": 0, "synced": 0}}
 
         synced = 0
-        errors: list[str] = []
+        hard_errors: list[str] = []
+        deferred_errors: list[str] = []
         for item in media_items:
             queue_id = item["queue_id"]
             local_path = item.get("local_path")
             if not local_path:
                 message = "upload queue item missing local_path"
                 self._mark_upload_failure([queue_id], item["retry_count"], message)
-                errors.append(message)
+                hard_errors.append(message)
                 continue
             absolute_path = self._absolute_local_path(local_path)
             if not absolute_path.exists():
                 message = f"media file missing on disk: {local_path}"
                 self._mark_upload_failure([queue_id], item["retry_count"], message)
-                errors.append(message)
+                hard_errors.append(message)
                 continue
             bucket = _bucket_name_for_path(local_path)
             content_type = mimetypes.guess_type(local_path)[0] or "application/octet-stream"
@@ -127,15 +141,20 @@ class SyncService:
             except Exception as exc:
                 message = str(exc)
                 self._mark_upload_failure([queue_id], item["retry_count"], message)
-                errors.append(message)
+                if _is_transient_sync_error(message):
+                    deferred_errors.append(message)
+                else:
+                    hard_errors.append(message)
                 continue
             self.database.mark_upload_items_state([queue_id], "synced", last_error=None)
             self._advance_related_upload_state_after_media(item["related_table"], item["related_id"])
             synced += 1
 
         return {
-            "ok": not errors,
-            "message": errors[0] if errors else None,
+            "ok": not hard_errors and not deferred_errors,
+            "hard_error": bool(hard_errors),
+            "deferred": bool(deferred_errors) and not hard_errors,
+            "message": (hard_errors or deferred_errors or [None])[0],
             "counts": {"items": len(media_items), "synced": synced},
         }
 
@@ -173,14 +192,20 @@ class SyncService:
             response = self._post_json("/ingest/batch", payload)
         except Exception as exc:
             self._mark_upload_failure(queue_ids, max((item["retry_count"] for item in metadata_items), default=0), str(exc))
-            return {"ok": False, "message": str(exc), "counts": {"items": len(metadata_items), "synced": 0}}
+            return {
+                "ok": False,
+                "hard_error": not _is_transient_sync_error(str(exc)),
+                "deferred": _is_transient_sync_error(str(exc)),
+                "message": str(exc),
+                "counts": {"items": len(metadata_items), "synced": 0},
+            }
 
         self.database.mark_upload_items_state(queue_ids, "synced", last_error=None)
         for event_id in event_ids:
             self._advance_related_upload_state_after_metadata("detections", event_id)
         for video_segment_id in video_segment_ids:
             self._advance_related_upload_state_after_metadata("video_segments", video_segment_id)
-        return {"ok": True, "response": response, "counts": {"items": len(metadata_items)}}
+        return {"ok": True, "hard_error": False, "deferred": False, "response": response, "counts": {"items": len(metadata_items)}}
 
     def _post_json(self, path: str, payload: dict) -> dict:
         base_url = (self.config.sync.base_url or "").rstrip("/")
@@ -220,14 +245,24 @@ class SyncService:
             "authorization": f"Bearer {self.config.sync.ingest_token}",
             "user-agent": "signomat-pi-sync/0.1",
         }
-        with file_path.open("rb") as handle:
-            connection = connection_cls(parsed.netloc, timeout=self.config.sync.request_timeout_seconds)
-            try:
-                connection.request("PUT", body_path, body=handle, headers=headers)
-                response = connection.getresponse()
-                payload = response.read().decode("utf-8")
-            finally:
-                connection.close()
+        connection = connection_cls(parsed.netloc, timeout=self.config.sync.request_timeout_seconds)
+        try:
+            with file_path.open("rb") as handle:
+                connection.putrequest("PUT", body_path)
+                for header_name, header_value in headers.items():
+                    connection.putheader(header_name, header_value)
+                connection.endheaders()
+                while True:
+                    chunk = handle.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    connection.send(chunk)
+            response = connection.getresponse()
+            payload = response.read().decode("utf-8")
+        except OSError as exc:
+            raise RuntimeError(f"media upload connection failed: {exc}") from exc
+        finally:
+            connection.close()
         if response.status >= 400:
             raise RuntimeError(f"media upload HTTP {response.status}: {payload or response.reason}")
         return json.loads(payload) if payload else {"ok": True}
@@ -376,3 +411,21 @@ def _bucket_name_for_path(local_path: str) -> str:
 def _backoff_time_text(retry_count: int) -> str:
     seconds = min(300, max(5, 2 ** min(retry_count + 1, 8)))
     return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _is_transient_sync_error(message: str) -> bool:
+    normalized = message.lower()
+    return any(
+        token in normalized
+        for token in (
+            "broken pipe",
+            "connection failed",
+            "connection reset",
+            "network is unreachable",
+            "timed out",
+            "timeout",
+            "temporarily unavailable",
+            "remote end closed connection",
+            "connection aborted",
+        )
+    )

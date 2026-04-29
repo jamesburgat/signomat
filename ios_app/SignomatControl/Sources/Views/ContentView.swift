@@ -33,6 +33,7 @@ struct ControlDashboardView: View {
     private let tripCommands: [SignomatCommand] = [.startTrip, .stopTrip, .saveDiagnosticSnapshot]
     private let recordingCommands: [SignomatCommand] = [.startRecording, .stopRecording]
     private let inferenceCommands: [SignomatCommand] = [.enableInference, .disableInference]
+    private let classificationCommands: [SignomatCommand] = [.runPostTripClassification]
 
     var body: some View {
         NavigationStack {
@@ -195,7 +196,12 @@ struct ControlDashboardView: View {
             statusRow("Trip ID", status.tripID ?? "None")
             statusRow("Trip Active", status.trip ? "Yes" : "No")
             recordingBadge(isRecording: status.rec)
+            statusRow("Pi Mode", displayMode(status.mode))
+            statusRow("Mode Detail", status.modeDetail ?? "None")
             statusRow("Inference", status.inf ? "Enabled" : "Disabled")
+            statusRow("Classification", classificationStatusText(status))
+            statusRow("Classification Progress", classificationProgressText(status))
+            statusRow("Pending Classification Trips", "\(status.classPending)")
             statusRow("Last Detection", status.last ?? "None")
             statusRow("Last Detection Time", status.lastTS ?? "None")
             statusRow("Detections This Trip", "\(status.det)")
@@ -207,7 +213,9 @@ struct ControlDashboardView: View {
             statusRow("Storage Free", "\(status.freeMB) MB")
             statusRow("Storage Used", "\(status.usedMB) MB")
             statusRow("Upload Queue", "\(status.queue)")
+            statusRow("Upload Progress", uploadProgressText(status))
             statusRow("Sync State", status.sync)
+            statusRow("Last Sync", status.lastSyncedAt ?? "None")
             statusRow("Pi Temp", temperatureText(status))
             if let error = viewModel.manager.lastCommandError {
                 Text(error)
@@ -359,6 +367,18 @@ struct ControlDashboardView: View {
                     commandButton(command)
                 }
             }
+
+            Text("Post-Trip Classification")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            Text("Launch pending post-trip classification over BLE and watch progress from the live status stream.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: commandGrid, spacing: 12) {
+                ForEach(classificationCommands) { command in
+                    commandButton(command)
+                }
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -385,7 +405,7 @@ struct ControlDashboardView: View {
             viewModel.manager.send(command)
         }
         .buttonStyle(.borderedProminent)
-        .disabled(!viewModel.manager.isConnected)
+        .disabled(!commandAvailable(command))
     }
 
     private func largeCommandButton(_ command: SignomatCommand, tint: Color) -> some View {
@@ -397,7 +417,15 @@ struct ControlDashboardView: View {
         .font(.headline)
         .frame(maxWidth: .infinity)
         .controlSize(.large)
-        .disabled(!viewModel.manager.isConnected)
+        .disabled(!commandAvailable(command))
+    }
+
+    private func commandAvailable(_ command: SignomatCommand) -> Bool {
+        guard viewModel.manager.isConnected else { return false }
+        if command == .runPostTripClassification {
+            return !viewModel.manager.status.classRunning && viewModel.manager.status.classLaunchable
+        }
+        return true
     }
 
     private var mapCard: some View {
@@ -459,6 +487,10 @@ struct ControlDashboardView: View {
         label.replacingOccurrences(of: "_", with: " ").capitalized
     }
 
+    private func displayMode(_ mode: String) -> String {
+        mode.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
     private func recordingBadge(isRecording: Bool) -> some View {
         HStack {
             Text("Recording")
@@ -483,6 +515,34 @@ struct ControlDashboardView: View {
     private func temperatureText(_ status: LiveStatus) -> String {
         guard let tempC = status.tempC else { return "Unavailable" }
         return String(format: "%.1f C", tempC)
+    }
+
+    private func classificationStatusText(_ status: LiveStatus) -> String {
+        if status.classRunning {
+            let trip = status.classTripID ?? "pending trip"
+            let state = status.classState ?? "running"
+            return "\(displayMode(state)) (\(trip))"
+        }
+        if status.classPending > 0 {
+            return status.classLaunchable ? "Ready to run" : "Queued"
+        }
+        return "Idle"
+    }
+
+    private func classificationProgressText(_ status: LiveStatus) -> String {
+        guard status.classRunning else { return "n/a" }
+        guard status.classTotal > 0 else { return "Starting..." }
+        return "\(status.classProcessed)/\(status.classTotal) (\(status.classPct)%)"
+    }
+
+    private func uploadProgressText(_ status: LiveStatus) -> String {
+        if status.uploadPending > 0 {
+            return "\(status.uploadPending) pending (\(status.uploadPct)%)"
+        }
+        if status.uploadTotal <= 0 {
+            return "Idle"
+        }
+        return "Up to date"
     }
 
     private var trailCoordinates: [CLLocationCoordinate2D] {

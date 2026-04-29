@@ -8,6 +8,18 @@ def test_device_status_includes_primary_alert():
             "inference_active": True,
             "sync_status": "idle",
             "pi_temperature_c": 42.0,
+            "pi_mode": "classifying",
+            "pi_mode_detail": "Post-trip classification running for 2026-04-13_trip_001",
+            "classification_status": {
+                "state": "running",
+                "running": True,
+                "current_trip_id": "2026-04-13_trip_001",
+                "processed_groups": 3,
+                "total_groups": 12,
+                "progress_pct": 25,
+                "pending_trip_count": 2,
+                "launchable": False,
+            },
             "preview_base_url": "http://cornichon.local:8080",
             "preview_fallback_base_url": "http://10.1.76.38:8080",
             "primary_alert": {
@@ -22,6 +34,9 @@ def test_device_status_includes_primary_alert():
 
     assert payload["alert"]["id"] == "memory_low"
     assert payload["alert"]["title"] == "Memory low"
+    assert payload["mode"] == "classifying"
+    assert payload["class_pct"] == 25
+    assert payload["class_trip_id"] == "2026-04-13_trip_001"
     assert payload["preview_base_url"] == "http://cornichon.local:8080"
     assert payload["preview_fallback_base_url"] == "http://10.1.76.38:8080"
 

@@ -5,11 +5,19 @@ Wants=local-fs.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/signomat
+User=jamesburgat
+Group=jamesburgat
+WorkingDirectory=/home/jamesburgat/signomat
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUWeight=50
+IOWeight=50
+Environment=HOME=/home/jamesburgat
 Environment=PYTHONUNBUFFERED=1
-Environment=PYTHONPATH=/opt/signomat/pi/src
+Environment=PYTHONPATH=/home/jamesburgat/signomat/pi/src
 EnvironmentFile=-/etc/default/signomat
-ExecStart=/opt/signomat/.venv/bin/python -m signomat_pi.cli.main --config /opt/signomat/pi/config/default.yaml serve
+ExecStart=/home/jamesburgat/signomat/.venv/bin/python -m signomat_pi.cli.main --config /home/jamesburgat/signomat/pi/config/default.yaml serve
 Restart=always
 RestartSec=5
 

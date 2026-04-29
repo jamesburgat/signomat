@@ -12,6 +12,7 @@ class LCDStatusDisplay:
         self.driver = os.getenv("SIGNOMAT_LCD_DRIVER", "i2c").strip().lower()
         self.refresh_interval = float(os.getenv("SIGNOMAT_LCD_REFRESH_SECONDS", "0.5"))
         self.alert_page_seconds = float(os.getenv("SIGNOMAT_LCD_ALERT_PAGE_SECONDS", "2.0"))
+        self.dim_alerts = os.getenv("SIGNOMAT_LCD_DIM_ALERTS", "0").strip().lower() in {"1", "true", "yes", "on"}
         self.enabled = self.driver != "off"
         self.available = False
         self.error = None
@@ -130,7 +131,8 @@ class LCDStatusDisplay:
             return
         if hasattr(self.lcd, "backlight_enabled"):
             try:
-                self.lcd.backlight_enabled = not alert
+                # Keep the LCD readable during alerts unless dimming is explicitly enabled.
+                self.lcd.backlight_enabled = not alert if self.dim_alerts else True
             except Exception:  # pragma: no cover
                 pass
         self._last_alert_mode = alert
@@ -206,6 +208,9 @@ class LCDStatusDisplay:
         ble_connected: bool,
         wifi_connected: bool,
         sync_status: str,
+        upload_status: dict | None = None,
+        classification_status: dict | None = None,
+        pi_mode: str | None = None,
         alert: dict | None = None,
     ):
         if alert:
@@ -225,8 +230,27 @@ class LCDStatusDisplay:
         else:
             speed_text = "GPS idle"
         line1 = f"{line1}{speed_text}"
-        if trip_active:
-            line2 = f"Signs {event_count:03d}"
+        effective_mode = pi_mode
+        if effective_mode is None:
+            if trip_active and recording_active and inference_active:
+                effective_mode = "detecting"
+            elif trip_active and recording_active:
+                effective_mode = "recording"
+        upload_pending = int((upload_status or {}).get("pending") or 0)
+        if trip_active and effective_mode == "detecting":
+            line2 = f"Detect {event_count:03d}"
+        elif trip_active and recording_active and not inference_active:
+            line2 = "Rec only"
+        elif trip_active:
+            line2 = f"Trip {event_count:03d}"
+        elif classification_status and classification_status.get("running"):
+            processed = int(classification_status.get("processed_groups") or 0)
+            total = int(classification_status.get("total_groups") or 0)
+            line2 = f"Class {processed:02d}/{total:02d}" if total else "Classify run"
+        elif upload_pending > 0 and pi_mode == "uploading":
+            line2 = f"Upload {upload_pending:03d}"
+        elif classification_status and classification_status.get("pending_trip_count", 0) > 0:
+            line2 = "Classify ready"
         elif sync_status not in {"idle", "ok", "success", "synced"}:
             line2 = f"Sync {sync_status}"
         elif inference_active:

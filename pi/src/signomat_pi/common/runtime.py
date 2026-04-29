@@ -21,7 +21,7 @@ from signomat_pi.common.lcd import LCDStatusDisplay
 from signomat_pi.common.storage import StorageManager
 from signomat_pi.common.utils import stable_id, utc_now, utc_now_text
 from signomat_pi.gps_service.service import GPSService
-from signomat_pi.inference_service.replay import ReplayEvaluator
+from signomat_pi.inference_service.replay import PostTripClassificationManager, ReplayEvaluator
 from signomat_pi.inference_service.service import InferenceService
 from signomat_pi.sync_service.service import SyncService
 
@@ -48,6 +48,16 @@ class SignomatRuntime:
         self.database = Database(self.storage.db_path, resolve_repo_path("pi/migrations"))
         self.database.apply_migrations()
         self.database.recover_interrupted_trips()
+        self.capture_service = CaptureService(config, self.storage, self.database)
+        recovered_segments = self.capture_service.recover_interrupted_segments()
+        if recovered_segments:
+            LOGGER.warning("recovered %s unfinished video segment(s) from an interrupted session", recovered_segments)
+            self.database.add_device_event(
+                "recording.recover",
+                "warning",
+                "recovered unfinished video segments from an interrupted session",
+                {"count": recovered_segments},
+            )
         self.current_trip_id: str | None = None
         self.recording_active = False
         self.inference_active = config.inference.enabled
@@ -60,10 +70,14 @@ class SignomatRuntime:
         self.lcd_running = threading.Event()
         self.lcd_thread: threading.Thread | None = None
         self.sync_service = SyncService(config, self.database)
-        self.capture_service = CaptureService(config, self.storage, self.database)
         self.gps_service = GPSService(config, self.storage, self.database)
         self.inference_service = InferenceService(config, self.storage, self.database, self.capture_service, self.gps_service, RuntimeCallbacks(self))
-        self.replay_evaluator = ReplayEvaluator(config, self.storage, self.database, classifier=self.inference_service.classifier)
+        self.replay_evaluator = ReplayEvaluator(config, self.storage, self.database)
+        self.post_trip_classifier = PostTripClassificationManager(
+            self.replay_evaluator,
+            self.database,
+            can_run_callback=lambda: self.current_trip_id is None,
+        )
         self.ble_service = BLEControlService(config, self)
         if self.lcd.enabled and not self.lcd.available and self.lcd.error:
             LOGGER.warning("LCD unavailable: %s", self.lcd.error)
@@ -99,6 +113,7 @@ class SignomatRuntime:
         if self.config.ble.enabled:
             self.ble_service.stop()
         self.sync_service.stop()
+        self.post_trip_classifier.stop()
         self.database.add_device_event("runtime.stop", "info", "runtime stopped")
         self.lcd.close()
         self.database.close()
@@ -142,6 +157,9 @@ class SignomatRuntime:
         self.lcd.show_message("Trip stopped", trip_id[-8:], transient_seconds=2, force=True)
         self.refresh_lcd()
         self.ble_service.refresh()
+        self.inference_service.flush_detection_writes()
+        if self.database.detection_count_for_trip(trip_id) > 0:
+            self.post_trip_classifier.enqueue_trip(trip_id)
         return {"ok": True, "trip_id": trip_id}
 
     def start_recording(self) -> dict:
@@ -182,24 +200,18 @@ class SignomatRuntime:
         return {
             "ok": True,
             "persisted": False,
-            "message": "live camera tuning updates apply immediately but are not saved across service restarts",
+            "supported": False,
+            "message": "forced camera adjustments are disabled; Signomat now leaves exposure and gain unmanaged by the app",
             "tuning": self.capture_service.camera_tuning(),
         }
 
     def update_camera_tuning(self, updates: dict) -> dict:
-        tuning = self.capture_service.update_camera_tuning(updates)
-        self.config.camera.auto_exposure = tuning["auto_exposure"]
-        self.config.camera.exposure_compensation = tuning["exposure_compensation"]
-        self.config.camera.brightness = tuning["brightness"]
-        self.config.camera.contrast = tuning["contrast"]
-        self.config.camera.exposure_time_us = tuning["exposure_time_us"]
-        self.config.camera.analogue_gain = tuning["analogue_gain"]
-        self.database.add_device_event("camera.tuning", "info", "camera tuning updated", tuning)
         return {
-            "ok": True,
+            "ok": False,
             "persisted": False,
-            "message": "live camera tuning updated for the running session",
-            "tuning": tuning,
+            "supported": False,
+            "message": "forced camera adjustments are disabled; no exposure or gain changes were applied",
+            "tuning": self.capture_service.camera_tuning(),
         }
 
     def on_detection(self, payload: dict) -> None:
@@ -280,6 +292,7 @@ class SignomatRuntime:
             "stop_recording": self.stop_recording,
             "enable_inference": self.enable_inference,
             "disable_inference": self.disable_inference,
+            "run_post_trip_classification": self.run_post_trip_classification,
             "save_diagnostic_snapshot": self.diagnostic_snapshot,
         }
         handler = handlers.get(command)
@@ -289,6 +302,12 @@ class SignomatRuntime:
 
     def replay_trip(self, trip_id: str, *, export: bool = True) -> dict:
         return self.replay_evaluator.evaluate_trip(trip_id, export=export)
+
+    def classification_status(self) -> dict:
+        return self.post_trip_classifier.status()
+
+    def run_post_trip_classification(self, trip_id: str | None = None) -> dict:
+        return self.post_trip_classifier.launch(trip_id)
 
     def temperature_c(self) -> float | None:
         path = Path("/sys/class/thermal/thermal_zone0/temp")
@@ -391,7 +410,12 @@ class SignomatRuntime:
             self._wifi_connected = False
             self._wifi_ipv4 = None
             return
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        except OSError:
+            self._wifi_connected = False
+            self._wifi_ipv4 = None
+            return
         try:
             packed = struct.pack("256s", interface[:15].encode("utf-8"))
             response = fcntl.ioctl(sock.fileno(), 0x8915, packed)
@@ -431,11 +455,57 @@ class SignomatRuntime:
             return None
         return f"http://{ip_address}:{self.config.api.port}"
 
+    def upload_progress(self, sync: dict | None = None) -> dict:
+        sync = sync or self.sync_service.status()
+        total = int(sync.get("total", 0) or 0)
+        pending = int(sync.get("pending", 0) or 0)
+        synced = int(sync.get("synced", 0) or 0)
+        progress_pct = 100 if total == 0 else int((synced * 100) / max(total, 1))
+        if pending > 0:
+            progress_pct = min(progress_pct, 99)
+        return {
+            "queue": total,
+            "pending": pending,
+            "synced": synced,
+            "total": total,
+            "progress_pct": progress_pct,
+            "last_result": sync.get("last_result"),
+            "last_synced_at": sync.get("last_synced_at"),
+            "enabled": bool(sync.get("enabled", False)),
+        }
+
+    def pi_mode_summary(self, sync: dict | None = None, classification_status: dict | None = None) -> dict[str, str]:
+        sync = sync or self.sync_service.status()
+        classification_status = classification_status or self.classification_status()
+        upload = self.upload_progress(sync)
+
+        if self.current_trip_id:
+            if self.recording_active and self.inference_active:
+                return {"mode": "detecting", "detail": "Trip active: recording and detecting"}
+            if self.recording_active:
+                return {"mode": "recording", "detail": "Trip active: recording only"}
+            if self.inference_active:
+                return {"mode": "trip_active", "detail": "Trip active: detection enabled"}
+            return {"mode": "trip_paused", "detail": "Trip active: detection paused"}
+        if classification_status.get("running"):
+            trip_id = classification_status.get("current_trip_id") or "pending trip"
+            return {"mode": "classifying", "detail": f"Post-trip classification running for {trip_id}"}
+        if upload["pending"] > 0 and bool(sync.get("enabled")):
+            return {"mode": "uploading", "detail": f"Uploading backlog ({upload['pending']} pending)"}
+        if classification_status.get("pending_trip_count", 0) > 0:
+            return {"mode": "classification_ready", "detail": "Pending trips ready for post-trip classification"}
+        if not self.inference_active:
+            return {"mode": "detection_paused", "detail": "Inference disabled"}
+        return {"mode": "ready", "detail": "Idle and ready for detection"}
+
     def status_snapshot(self) -> dict:
         storage = self.storage.storage_status()
         sync = self.sync_service.status()
+        classification_status = self.classification_status()
         memory = self.memory_status()
         alerts = self.system_alerts(storage=storage, sync=sync, memory=memory)
+        pi_mode = self.pi_mode_summary(sync=sync, classification_status=classification_status)
+        upload = self.upload_progress(sync=sync)
         if self.current_trip_id:
             sign_categories = self.database.detection_category_counts_for_trip(self.current_trip_id)
             recent_signs = self.database.recent_detections_for_trip(self.current_trip_id)
@@ -455,10 +525,14 @@ class SignomatRuntime:
             "storage": storage,
             "memory": memory,
             "upload_queue_size": sync.get("total", 0),
+            "upload_progress": upload,
             "sync_status": sync["last_result"],
             "gps_health": self.gps_service.health,
             "pi_temperature_c": self.temperature_c(),
             "inference_health": self.inference_service.status(),
+            "classification_status": classification_status,
+            "pi_mode": pi_mode["mode"],
+            "pi_mode_detail": pi_mode["detail"],
             "alerts": alerts,
             "primary_alert": alerts[0] if alerts else None,
             "ble_connected": self.ble_service.connected if self.config.ble.enabled else False,
@@ -482,7 +556,10 @@ class SignomatRuntime:
         last_label = None
         if self.last_detection:
             last_label = self.last_detection["specific_label"] or self.last_detection["category_label"]
-        sync_status = self.sync_service.status()["last_result"]
+        sync = self.sync_service.status()
+        sync_status = sync["last_result"]
+        classification_status = self.classification_status()
+        pi_mode = self.pi_mode_summary(sync=sync, classification_status=classification_status)["mode"]
         primary_alert = self.status_snapshot()["primary_alert"]
         self.lcd.update_runtime(
             gps_health=self.gps_service.health,
@@ -495,6 +572,9 @@ class SignomatRuntime:
             ble_connected=self.ble_service.connected if self.config.ble.enabled else False,
             wifi_connected=self.wifi_connected(),
             sync_status=sync_status,
+            upload_status=self.upload_progress(sync=sync),
+            classification_status=classification_status,
+            pi_mode=pi_mode,
             alert=primary_alert,
         )
 

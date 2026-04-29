@@ -34,6 +34,11 @@ inference:
   interval_seconds: 0.5
   save_crops: false
   save_unknown_signs: true
+  save_clean_frame: true
+  save_clean_thumbnail: true
+  save_annotated_frame: false
+  save_annotated_thumbnail: false
+  save_crop_thumbnail: false
   thumbnail_max_edge: 320
   detector_backend: mock_detector
   classifier_backend: mock_classifier

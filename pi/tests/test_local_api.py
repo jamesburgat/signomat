@@ -1,10 +1,15 @@
 import time
 
-from fastapi.testclient import TestClient
-
 from signomat_pi.common.config import load_config
 from signomat_pi.common.runtime import SignomatRuntime
-from signomat_pi.local_api.app import create_app
+from signomat_pi.local_api.app import CameraTuningUpdate, create_app
+
+
+def _endpoint(app, path: str, method: str = "GET"):
+    for route in app.router.routes:
+        if getattr(route, "path", None) == path and method in getattr(route, "methods", set()):
+            return route.endpoint
+    raise AssertionError(f"endpoint not found: {method} {path}")
 
 
 def test_mock_runtime_emits_status_and_detections(tmp_path):
@@ -12,26 +17,19 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
     config.app.base_data_dir = str(tmp_path / "signomat-data")
     runtime = SignomatRuntime(config)
     app = create_app(runtime)
-    client = TestClient(app)
 
     runtime.start()
     try:
-        response = client.post("/session/start")
-        assert response.status_code == 200
-        trip_id = response.json()["trip_id"]
+        trip_id = _endpoint(app, "/session/start", "POST")()["trip_id"]
         assert trip_id
 
         time.sleep(2.5)
 
-        status = client.get("/status")
-        assert status.status_code == 200
-        payload = status.json()
+        payload = _endpoint(app, "/status")()
         assert payload["trip_active"] is True
         assert payload["detection_count_trip"] >= 1
 
-        ble_payloads = client.get("/ble/payloads")
-        assert ble_payloads.status_code == 200
-        ble = ble_payloads.json()
+        ble = _endpoint(app, "/ble/payloads")()
         assert "7b1e1001-5d1f-4aa0-9a7d-6f5c0b6c1000" in ble
         assert ble["7b1e1002-5d1f-4aa0-9a7d-6f5c0b6c1000"]["trip"] is True
         assert "gps" in ble["7b1e1007-5d1f-4aa0-9a7d-6f5c0b6c1000"]
@@ -40,75 +38,83 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
         assert "preview_base_url" in ble["7b1e1001-5d1f-4aa0-9a7d-6f5c0b6c1000"]
         assert "preview_fallback_base_url" in ble["7b1e1001-5d1f-4aa0-9a7d-6f5c0b6c1000"]
 
-        detections = client.get("/detections/recent")
-        assert detections.status_code == 200
-        assert len(detections.json()) >= 1
+        detections = _endpoint(app, "/detections/recent")(20)
+        assert len(detections) >= 1
 
-        replay = client.post(f"/replay/{trip_id}")
-        assert replay.status_code == 200
-        replay_payload = replay.json()
+        replay_payload = _endpoint(app, "/replay/{trip_id}", "POST")(trip_id)
         assert replay_payload["ok"] is True
         assert replay_payload["trip_id"] == trip_id
         assert replay_payload["evaluated_detections"] >= 1
         assert replay_payload["mode"] == "stored_detection_frame_replay"
         assert replay_payload.get("export_path")
 
-        gps = client.get("/gps/recent")
-        assert gps.status_code == 200
-        assert len(gps.json()) >= 1
+        classification_status = _endpoint(app, "/classification/status")()
+        assert "pending_trips" in classification_status
 
-        preview_page = client.get("/preview")
-        assert preview_page.status_code == 200
-        assert "Signomat live preview" in preview_page.text
-        assert "Camera Tuning" in preview_page.text
+        gps = _endpoint(app, "/gps/recent")(50)
+        assert len(gps) >= 1
 
-        tuning = client.get("/camera/tuning")
-        assert tuning.status_code == 200
-        assert tuning.json()["tuning"]["backend"] == "mock"
+        preview_page = _endpoint(app, "/preview")()
+        assert "Signomat live preview" in preview_page
+        assert "Camera Exposure Audit" in preview_page
+        assert "Post-Trip Classification" in preview_page
+        assert "Day" not in preview_page
+        assert "Night" not in preview_page
 
-        tuning_update = client.post(
-            "/camera/tuning",
-            json={
-                "auto_exposure": False,
-                "exposure_time_us": 18000,
-                "analogue_gain": 8.0,
-                "brightness": 0.12,
-                "contrast": 1.18,
-            },
+        tuning = _endpoint(app, "/camera/tuning")()
+        assert tuning["tuning"]["backend"] == "mock"
+        assert tuning["supported"] is False
+
+        tuning_update = _endpoint(app, "/camera/tuning", "POST")(
+            CameraTuningUpdate(
+                auto_exposure=False,
+                exposure_time_us=18000,
+                analogue_gain=8.0,
+                brightness=0.12,
+                contrast=1.18,
+            )
         )
-        assert tuning_update.status_code == 200
-        updated = tuning_update.json()["tuning"]
-        assert updated["auto_exposure"] is False
-        assert updated["exposure_time_us"] == 18000
-        assert updated["analogue_gain"] == 8.0
+        updated = tuning_update
+        assert updated["ok"] is False
+        assert updated["supported"] is False
+        assert "disabled" in updated["message"]
 
-        recordings_page = client.get("/recordings")
-        assert recordings_page.status_code == 200
-        assert "Trip Recordings" in recordings_page.text
+        recordings_page = _endpoint(app, "/recordings")()
+        assert "Trip Recordings" in recordings_page
 
-        with client.stream("GET", "/preview.mjpg?max_frames=1") as response:
-            assert response.status_code == 200
-            assert response.headers["content-type"].startswith("multipart/x-mixed-replace")
-            first_chunk = next(response.iter_bytes())
-            assert b"Content-Type: image/jpeg" in first_chunk
+        preview_stream = _endpoint(app, "/preview.mjpg")(max_frames=1)
+        assert preview_stream.media_type.startswith("multipart/x-mixed-replace")
 
-        preview_still = client.get("/preview.jpg")
-        assert preview_still.status_code == 200
-        assert preview_still.headers["content-type"].startswith("image/jpeg")
-        assert preview_still.content[:2] == b"\xff\xd8"
+        preview_still = _endpoint(app, "/preview.jpg")()
+        assert preview_still.media_type.startswith("image/jpeg")
+        assert preview_still.body[:2] == b"\xff\xd8"
 
-        recent_videos = client.get("/video/recent").json()
+        recent_videos = _endpoint(app, "/video/recent")(20)
         assert recent_videos
         trip_id = recent_videos[0]["trip_id"]
         segment_id = recent_videos[0]["video_segment_id"]
 
-        trip_recordings = client.get(f"/recordings/{trip_id}")
-        assert trip_recordings.status_code == 200
-        assert trip_id in trip_recordings.text
-        assert "Play Full Trip" in trip_recordings.text
+        trip_recordings = _endpoint(app, "/recordings/{trip_id}")(trip_id)
+        assert trip_id in trip_recordings
+        assert "Play Full Trip" in trip_recordings
 
-        video_file = client.get(f"/recordings/video/{segment_id}")
-        assert video_file.status_code == 200
-        assert video_file.headers["content-type"].startswith("video/mp4")
+        video_file = _endpoint(app, "/recordings/video/{segment_id}")(segment_id)
+        assert video_file.media_type.startswith("video/mp4")
+
+        stopped_trip_id = _endpoint(app, "/session/stop", "POST")()["trip_id"]
+        assert stopped_trip_id == trip_id
+
+        deadline = time.time() + 10
+        final_status = None
+        while time.time() < deadline:
+            final_status = _endpoint(app, "/classification/status")()
+            if final_status["last_completed_trip_id"] == trip_id:
+                break
+            time.sleep(0.25)
+        assert final_status is not None
+        assert final_status["last_completed_trip_id"] == trip_id
+
+        run_again = _endpoint(app, "/classification/run", "POST")()
+        assert run_again["ok"] in {True, False}
     finally:
         runtime.stop()

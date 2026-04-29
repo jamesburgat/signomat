@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import cv2
@@ -67,6 +67,38 @@ class CaptureService:
         with self.state_lock:
             self.recording_enabled = False
             self._close_segment()
+
+    def recover_interrupted_segments(self) -> int:
+        recovered = 0
+        for segment in self.database.unfinished_video_segments():
+            segment_id = segment["video_segment_id"]
+            file_path = self._absolute_segment_path(segment["file_path"])
+            end_timestamp_utc = self._recovered_segment_end_timestamp(segment["start_timestamp_utc"], file_path)
+            duration_sec = self._recovered_segment_duration_seconds(segment["start_timestamp_utc"], end_timestamp_utc)
+            self.database.finalize_video_segment(
+                segment_id,
+                end_timestamp_utc,
+                file_path.stat().st_size if file_path.exists() else 0,
+                duration_sec,
+            )
+            if file_path.exists() and not self.database.upload_item_exists("video_media", "video_segments", segment_id):
+                self.database.enqueue_upload(
+                    "video_media",
+                    segment["file_path"],
+                    "video_segments",
+                    segment_id,
+                    {"trip_id": segment["trip_id"], "type": "video_media"},
+                )
+            if not self.database.upload_item_exists("video_segment", "video_segments", segment_id):
+                self.database.enqueue_upload(
+                    "video_segment",
+                    segment["file_path"],
+                    "video_segments",
+                    segment_id,
+                    {"trip_id": segment["trip_id"], "type": "video_segment"},
+                )
+            recovered += 1
+        return recovered
 
     def latest_frame(self) -> FramePacket | None:
         with self.frame_lock:
@@ -239,3 +271,22 @@ class CaptureService:
 
     def _trim_overlays(self, now: datetime) -> None:
         self.overlays = [overlay for overlay in self.overlays if overlay.expires_at >= now]
+
+    def _absolute_segment_path(self, file_path: str) -> Path:
+        candidate = Path(file_path)
+        if candidate.is_absolute():
+            return candidate
+        return self.storage.base_dir / candidate
+
+    def _recovered_segment_end_timestamp(self, start_timestamp_utc: str, file_path: Path) -> str:
+        if file_path.exists():
+            modified_at = datetime.fromtimestamp(file_path.stat().st_mtime, tz=UTC)
+            modified_text = modified_at.isoformat().replace("+00:00", "Z")
+            if modified_text >= start_timestamp_utc:
+                return modified_text
+        return utc_now_text()
+
+    def _recovered_segment_duration_seconds(self, start_timestamp_utc: str, end_timestamp_utc: str) -> float:
+        start_dt = datetime.fromisoformat(start_timestamp_utc.replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(end_timestamp_utc.replace("Z", "+00:00"))
+        return max(0.0, (end_dt - start_dt).total_seconds())

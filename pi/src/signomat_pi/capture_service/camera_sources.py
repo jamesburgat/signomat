@@ -31,17 +31,18 @@ class CameraSource(Protocol):
     def apply_tuning(self, updates: dict[str, Any]) -> dict[str, Any]: ...
 
 
-def _normalize_tuning(updates: dict[str, Any]) -> dict[str, Any]:
-    normalized: dict[str, Any] = {}
-    if "auto_exposure" in updates and updates["auto_exposure"] is not None:
-        normalized["auto_exposure"] = bool(updates["auto_exposure"])
-    for key in ("exposure_compensation", "brightness", "contrast", "analogue_gain"):
-        if key in updates and updates[key] is not None:
-            normalized[key] = float(updates[key])
-    if "exposure_time_us" in updates:
-        value = updates["exposure_time_us"]
-        normalized["exposure_time_us"] = None if value is None else int(value)
-    return normalized
+def _disabled_tuning_payload(backend: str) -> dict[str, Any]:
+    return {
+        "backend": backend,
+        "forced_adjustments_supported": False,
+        "forced_adjustments_active": False,
+        "auto_exposure": True,
+        "exposure_compensation": 0.0,
+        "brightness": 0.0,
+        "contrast": 1.0,
+        "exposure_time_us": None,
+        "analogue_gain": None,
+    }
 
 
 @dataclass
@@ -60,41 +61,10 @@ class Picamera2CameraSource:
     def __post_init__(self) -> None:
         self.camera = None
 
-    def _controls(self) -> dict[str, bool | float | int]:
-        controls: dict[str, bool | float | int] = {
-            "AeEnable": bool(self.auto_exposure),
-        }
-        if self.exposure_compensation:
-            controls["ExposureValue"] = float(self.exposure_compensation)
-        if self.brightness:
-            controls["Brightness"] = float(self.brightness)
-        if self.contrast != 1.0:
-            controls["Contrast"] = float(self.contrast)
-        if self.exposure_time_us is not None:
-            controls["ExposureTime"] = int(self.exposure_time_us)
-            controls["AeEnable"] = False
-        if self.analogue_gain is not None:
-            controls["AnalogueGain"] = float(self.analogue_gain)
-            controls["AeEnable"] = False
-        return controls
-
     def tuning(self) -> dict[str, Any]:
-        return {
-            "backend": "picamera2",
-            "auto_exposure": self.auto_exposure,
-            "exposure_compensation": self.exposure_compensation,
-            "brightness": self.brightness,
-            "contrast": self.contrast,
-            "exposure_time_us": self.exposure_time_us,
-            "analogue_gain": self.analogue_gain,
-        }
+        return _disabled_tuning_payload("picamera2")
 
     def apply_tuning(self, updates: dict[str, Any]) -> dict[str, Any]:
-        normalized = _normalize_tuning(updates)
-        for key, value in normalized.items():
-            setattr(self, key, value)
-        if self.camera is not None:
-            self.camera.set_controls(self._controls())
         return self.tuning()
 
     def start(self) -> None:
@@ -104,9 +74,6 @@ class Picamera2CameraSource:
         self.camera = Picamera2(**kwargs)
         config = self.camera.create_preview_configuration(main={"size": (self.width, self.height)})
         self.camera.configure(config)
-        controls = self._controls()
-        if controls:
-            self.camera.set_controls(controls)
         self.camera.start()
         time.sleep(self.warmup_seconds)
 
@@ -218,9 +185,6 @@ class OpenCVCameraSource:
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         if self.fourcc:
             capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.fourcc[:4].ljust(4)))
-        capture.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3 if self.auto_exposure else 1)
-        capture.set(cv2.CAP_PROP_BRIGHTNESS, self.brightness)
-        capture.set(cv2.CAP_PROP_CONTRAST, self.contrast)
         return capture
 
     def start(self) -> None:
@@ -247,24 +211,9 @@ class OpenCVCameraSource:
         raise CameraError(f"OpenCV camera start failed ({detail})")
 
     def tuning(self) -> dict[str, Any]:
-        return {
-            "backend": "opencv",
-            "auto_exposure": self.auto_exposure,
-            "exposure_compensation": self.exposure_compensation,
-            "brightness": self.brightness,
-            "contrast": self.contrast,
-            "exposure_time_us": self.exposure_time_us,
-            "analogue_gain": self.analogue_gain,
-        }
+        return _disabled_tuning_payload("opencv")
 
     def apply_tuning(self, updates: dict[str, Any]) -> dict[str, Any]:
-        normalized = _normalize_tuning(updates)
-        for key, value in normalized.items():
-            setattr(self, key, value)
-        if self.capture is not None:
-            self.capture.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3 if self.auto_exposure else 1)
-            self.capture.set(cv2.CAP_PROP_BRIGHTNESS, self.brightness)
-            self.capture.set(cv2.CAP_PROP_CONTRAST, self.contrast)
         return self.tuning()
 
     def capture_frame(self) -> np.ndarray:
@@ -323,20 +272,9 @@ class MockCameraSource:
         return "mock-camera"
 
     def tuning(self) -> dict[str, Any]:
-        return {
-            "backend": "mock",
-            "auto_exposure": self.auto_exposure,
-            "exposure_compensation": self.exposure_compensation,
-            "brightness": self.brightness,
-            "contrast": self.contrast,
-            "exposure_time_us": self.exposure_time_us,
-            "analogue_gain": self.analogue_gain,
-        }
+        return _disabled_tuning_payload("mock")
 
     def apply_tuning(self, updates: dict[str, Any]) -> dict[str, Any]:
-        normalized = _normalize_tuning(updates)
-        for key, value in normalized.items():
-            setattr(self, key, value)
         return self.tuning()
 
     def capture_frame(self) -> np.ndarray:
@@ -412,12 +350,12 @@ def create_camera_source(config: SignomatConfig) -> CameraSource:
             height=config.camera.height,
             fps=config.camera.fps,
             text_overlay=config.mock.frame_text_overlay,
-            auto_exposure=config.camera.auto_exposure,
-            exposure_compensation=config.camera.exposure_compensation,
-            brightness=config.camera.brightness,
-            contrast=config.camera.contrast,
-            exposure_time_us=config.camera.exposure_time_us,
-            analogue_gain=config.camera.analogue_gain,
+            auto_exposure=True,
+            exposure_compensation=0.0,
+            brightness=0.0,
+            contrast=1.0,
+            exposure_time_us=None,
+            analogue_gain=None,
         )
 
     if backend not in {"auto", "picamera2", "opencv"}:
@@ -429,12 +367,12 @@ def create_camera_source(config: SignomatConfig) -> CameraSource:
             width=config.camera.width,
             height=config.camera.height,
             warmup_seconds=config.camera.warmup_seconds,
-            auto_exposure=config.camera.auto_exposure,
-            exposure_compensation=config.camera.exposure_compensation,
-            brightness=config.camera.brightness,
-            contrast=config.camera.contrast,
-            exposure_time_us=config.camera.exposure_time_us,
-            analogue_gain=config.camera.analogue_gain,
+            auto_exposure=True,
+            exposure_compensation=0.0,
+            brightness=0.0,
+            contrast=1.0,
+            exposure_time_us=None,
+            analogue_gain=None,
         )
 
     target = config.camera.device if config.camera.device is not None else config.camera.index
@@ -446,12 +384,12 @@ def create_camera_source(config: SignomatConfig) -> CameraSource:
             fps=config.camera.fps,
             fourcc=config.camera.fourcc,
             warmup_seconds=config.camera.warmup_seconds,
-            auto_exposure=config.camera.auto_exposure,
-            exposure_compensation=config.camera.exposure_compensation,
-            brightness=config.camera.brightness,
-            contrast=config.camera.contrast,
-            exposure_time_us=config.camera.exposure_time_us,
-            analogue_gain=config.camera.analogue_gain,
+            auto_exposure=True,
+            exposure_compensation=0.0,
+            brightness=0.0,
+            contrast=1.0,
+            exposure_time_us=None,
+            analogue_gain=None,
         )
 
     if _picamera_is_available():
@@ -460,12 +398,12 @@ def create_camera_source(config: SignomatConfig) -> CameraSource:
             width=config.camera.width,
             height=config.camera.height,
             warmup_seconds=config.camera.warmup_seconds,
-            auto_exposure=config.camera.auto_exposure,
-            exposure_compensation=config.camera.exposure_compensation,
-            brightness=config.camera.brightness,
-            contrast=config.camera.contrast,
-            exposure_time_us=config.camera.exposure_time_us,
-            analogue_gain=config.camera.analogue_gain,
+            auto_exposure=True,
+            exposure_compensation=0.0,
+            brightness=0.0,
+            contrast=1.0,
+            exposure_time_us=None,
+            analogue_gain=None,
         )
 
     return OpenCVCameraSource(
@@ -475,10 +413,10 @@ def create_camera_source(config: SignomatConfig) -> CameraSource:
         fps=config.camera.fps,
         fourcc=config.camera.fourcc,
         warmup_seconds=config.camera.warmup_seconds,
-        auto_exposure=config.camera.auto_exposure,
-        exposure_compensation=config.camera.exposure_compensation,
-        brightness=config.camera.brightness,
-        contrast=config.camera.contrast,
-        exposure_time_us=config.camera.exposure_time_us,
-        analogue_gain=config.camera.analogue_gain,
+        auto_exposure=True,
+        exposure_compensation=0.0,
+        brightness=0.0,
+        contrast=1.0,
+        exposure_time_us=None,
+        analogue_gain=None,
     )

@@ -353,7 +353,8 @@ class Deduplicator:
         for item in self.recent:
             if item.category_id != category_id:
                 continue
-            if iou_xyxy(item.bbox, bbox) >= self.iou_threshold:
+            if self._matches_recent_detection(item.bbox, bbox):
+                item.bbox = bbox
                 item.seen_at = seen_at
                 return False, item.event_id
         group_id = stable_id("dedupe")
@@ -371,11 +372,38 @@ class Deduplicator:
         while self.recent and now - self.recent[0].seen_at > self.window:
             self.recent.popleft()
 
+    def _matches_recent_detection(
+        self,
+        existing_bbox: tuple[int, int, int, int],
+        current_bbox: tuple[int, int, int, int],
+    ) -> bool:
+        if iou_xyxy(existing_bbox, current_bbox) >= self.iou_threshold:
+            return True
+
+        existing_width = max(existing_bbox[2] - existing_bbox[0], 1)
+        existing_height = max(existing_bbox[3] - existing_bbox[1], 1)
+        current_width = max(current_bbox[2] - current_bbox[0], 1)
+        current_height = max(current_bbox[3] - current_bbox[1], 1)
+        existing_area = existing_width * existing_height
+        current_area = current_width * current_height
+        area_ratio = min(existing_area, current_area) / max(existing_area, current_area)
+        if area_ratio < 0.35:
+            return False
+
+        existing_center_x = (existing_bbox[0] + existing_bbox[2]) / 2
+        existing_center_y = (existing_bbox[1] + existing_bbox[3]) / 2
+        current_center_x = (current_bbox[0] + current_bbox[2]) / 2
+        current_center_y = (current_bbox[1] + current_bbox[3]) / 2
+        center_distance = float(np.hypot(current_center_x - existing_center_x, current_center_y - existing_center_y))
+        max_side = max(existing_width, existing_height, current_width, current_height)
+        return center_distance <= max_side
+
 
 class AssetWriter:
-    def __init__(self, storage: StorageManager, thumbnail_max_edge: int):
+    def __init__(self, storage: StorageManager, inference_config):
         self.storage = storage
-        self.thumbnail_max_edge = thumbnail_max_edge
+        self.thumbnail_max_edge = inference_config.thumbnail_max_edge
+        self.inference_config = inference_config
 
     def save_detection_assets(
         self,
@@ -388,32 +416,38 @@ class AssetWriter:
         save_crop: bool,
     ) -> SavedAssets:
         paths = self.storage.trip_paths(trip_id)
-        clean = paths["frames_clean"] / f"{event_id}.jpg"
-        annotated = paths["frames_annotated"] / f"{event_id}.jpg"
+        clean = paths["frames_clean"] / f"{event_id}.jpg" if self.inference_config.save_clean_frame else None
+        annotated = paths["frames_annotated"] / f"{event_id}.jpg" if self.inference_config.save_annotated_frame else None
         crop_path = paths["crops"] / f"{event_id}.jpg" if save_crop else None
-        clean_thumb = paths["thumb_clean"] / f"{event_id}.jpg"
-        annotated_thumb = paths["thumb_annotated"] / f"{event_id}.jpg"
-        crop_thumb = paths["thumb_crops"] / f"{event_id}.jpg" if save_crop else None
+        clean_thumb = paths["thumb_clean"] / f"{event_id}.jpg" if self.inference_config.save_clean_thumbnail else None
+        annotated_thumb = (
+            paths["thumb_annotated"] / f"{event_id}.jpg" if self.inference_config.save_annotated_thumbnail else None
+        )
+        crop_thumb = paths["thumb_crops"] / f"{event_id}.jpg" if (save_crop and self.inference_config.save_crop_thumbnail) else None
 
-        cv2.imwrite(str(ensure_parent(clean)), frame)
+        if clean is not None:
+            cv2.imwrite(str(ensure_parent(clean)), frame)
         self._save_thumbnail(frame, clean_thumb)
 
-        annotated_frame = frame.copy()
-        x1, y1, x2, y2 = bbox
-        cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
-        cv2.putText(
-            annotated_frame,
-            f"{label} {confidence:.2f}",
-            (x1, max(28, y1 - 10)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 255, 0),
-            2,
-        )
-        cv2.imwrite(str(ensure_parent(annotated)), annotated_frame)
-        self._save_thumbnail(annotated_frame, annotated_thumb)
+        if annotated is not None or annotated_thumb is not None:
+            annotated_frame = frame.copy()
+            x1, y1, x2, y2 = bbox
+            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
+            cv2.putText(
+                annotated_frame,
+                f"{label} {confidence:.2f}",
+                (x1, max(28, y1 - 10)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 0),
+                2,
+            )
+            if annotated is not None:
+                cv2.imwrite(str(ensure_parent(annotated)), annotated_frame)
+            self._save_thumbnail(annotated_frame, annotated_thumb)
 
         if save_crop and crop_path is not None:
+            x1, y1, x2, y2 = bbox
             crop = frame[y1:y2, x1:x2]
             cv2.imwrite(str(ensure_parent(crop_path)), crop)
             self._save_thumbnail(crop, crop_thumb)
