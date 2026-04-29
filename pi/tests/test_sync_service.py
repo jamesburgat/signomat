@@ -474,6 +474,112 @@ def test_force_sync_prioritizes_new_media_assets_before_old_video_retries(tmp_pa
     database.close()
 
 
+def test_force_sync_skips_video_uploads_while_any_image_assets_are_pending(tmp_path, monkeypatch):
+    config = load_config("pi/config/mock.yaml")
+    config.app.base_data_dir = str(tmp_path / "signomat-data")
+    config.sync.enabled = True
+    config.sync.base_url = "https://signomat-api.example.workers.dev"
+    config.sync.ingest_token = "token"
+    config.sync.device_id = "test-device"
+    config.sync.batch_size = 5
+
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir(parents=True, exist_ok=True)
+    source_migration = (Path(__file__).resolve().parents[1] / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
+    (migrations_dir / "0001_initial.sql").write_text(source_migration, encoding="utf-8")
+
+    base_dir = tmp_path / "signomat-data"
+    frame_path = base_dir / "trips" / "2026-03-31_trip_001" / "frames_clean" / "det_1.jpg"
+    video_path = base_dir / "trips" / "2026-03-30_trip_001" / "video" / "segment.mp4"
+    frame_path.parent.mkdir(parents=True, exist_ok=True)
+    video_path.parent.mkdir(parents=True, exist_ok=True)
+    frame_path.write_bytes(b"frame-bytes")
+    video_path.write_bytes(b"video-bytes")
+    (base_dir / "db").mkdir(parents=True, exist_ok=True)
+
+    database = Database(base_dir / "db" / "signomat.db", migrations_dir)
+    database.apply_migrations()
+
+    old_trip_id = "2026-03-30_trip_001"
+    database.create_trip(old_trip_id, True, True)
+    database.stop_trip(old_trip_id)
+    database.execute(
+        """
+        INSERT INTO video_segments(
+          video_segment_id, trip_id, start_timestamp_utc, end_timestamp_utc, file_path, file_size, duration_sec, upload_state
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("vid_old", old_trip_id, "2026-03-30T12:00:00Z", "2026-03-30T12:01:00Z", "trips/2026-03-30_trip_001/video/segment.mp4", len(b"video-bytes"), 60.0, "pending"),
+    )
+    database.enqueue_upload(
+        "video_media",
+        "trips/2026-03-30_trip_001/video/segment.mp4",
+        "video_segments",
+        "vid_old",
+        {"trip_id": old_trip_id},
+    )
+
+    trip_id = "2026-03-31_trip_001"
+    database.create_trip(trip_id, True, True)
+    database.stop_trip(trip_id)
+    database.add_detection(
+        {
+            "event_id": "det_new",
+            "trip_id": trip_id,
+            "timestamp_utc": "2026-03-31T12:00:10Z",
+            "gps_lat": 41.0,
+            "gps_lon": -71.0,
+            "gps_speed": 10.5,
+            "heading": 90.0,
+            "category_id": "stop",
+            "category_label": "stop",
+            "specific_label": "stop",
+            "grouping_mode": "specific",
+            "raw_detector_label": "red_octagon",
+            "raw_classifier_label": "stop",
+            "detector_confidence": 0.95,
+            "classifier_confidence": 0.93,
+            "bbox_left": 10,
+            "bbox_top": 20,
+            "bbox_right": 110,
+            "bbox_bottom": 120,
+            "annotated_frame_path": None,
+            "clean_frame_path": "trips/2026-03-31_trip_001/frames_clean/det_1.jpg",
+            "sign_crop_path": None,
+            "annotated_thumbnail_path": None,
+            "clean_thumbnail_path": None,
+            "sign_crop_thumbnail_path": None,
+            "video_segment_id": None,
+            "video_timestamp_offset_ms": None,
+            "dedupe_group_id": "grp_new",
+            "suppressed_nearby_count": 0,
+            "upload_state": "pending",
+            "review_state": "unreviewed",
+            "notes": None,
+        }
+    )
+    database.enqueue_upload("media_asset", "trips/2026-03-31_trip_001/frames_clean/det_1.jpg", "detections", "det_new", {"trip_id": trip_id})
+
+    service = SyncService(config, database)
+    uploads: list[str] = []
+
+    def fake_put_media(*, bucket: str, key: str, file_path: Path, content_type: str) -> dict:
+        uploads.append(key)
+        return {"ok": True}
+
+    monkeypatch.setattr(service, "_put_media", fake_put_media)
+
+    result = service.force_sync()
+
+    assert result["ok"] is True
+    assert uploads == ["trips/2026-03-31_trip_001/frames_clean/det_1.jpg"]
+    remaining_videos = database.pending_upload_items(limit=10, item_types=("video_media",))
+    assert len(remaining_videos) == 1
+    assert remaining_videos[0]["related_id"] == "vid_old"
+
+    database.close()
+
+
 def test_recover_interrupted_segments_finalizes_and_enqueues_missing_uploads(tmp_path):
     config = load_config("pi/config/mock.yaml")
     config.app.base_data_dir = str(tmp_path / "signomat-data")

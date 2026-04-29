@@ -101,8 +101,11 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
         video_file = _endpoint(app, "/recordings/video/{segment_id}")(segment_id)
         assert video_file.media_type.startswith("video/mp4")
 
-        stopped_trip_id = _endpoint(app, "/session/stop", "POST")()["trip_id"]
+        stop_payload = _endpoint(app, "/session/stop", "POST")()
+        stopped_trip_id = stop_payload["trip_id"]
         assert stopped_trip_id == trip_id
+        assert stop_payload["classification_queued"] is True
+        assert stop_payload["classification_status"]["queued_trip_ids"] or stop_payload["classification_status"]["running"]
 
         deadline = time.time() + 10
         final_status = None

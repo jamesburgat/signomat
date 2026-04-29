@@ -158,9 +158,24 @@ class SignomatRuntime:
         self.refresh_lcd()
         self.ble_service.refresh()
         self.inference_service.flush_detection_writes()
+        classification_queued = False
         if self.database.detection_count_for_trip(trip_id) > 0:
             self.post_trip_classifier.enqueue_trip(trip_id)
-        return {"ok": True, "trip_id": trip_id}
+            classification_queued = True
+            self.database.add_device_event(
+                "classification.enqueue",
+                "info",
+                "post-trip classification queued",
+                {"trip_id": trip_id},
+            )
+        self.refresh_lcd()
+        self.ble_service.refresh()
+        return {
+            "ok": True,
+            "trip_id": trip_id,
+            "classification_queued": classification_queued,
+            "classification_status": self.classification_status(),
+        }
 
     def start_recording(self) -> dict:
         if not self.current_trip_id:

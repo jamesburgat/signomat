@@ -114,11 +114,10 @@ class SyncService:
             limit=self.config.sync.batch_size,
             item_types=("media_asset",),
         )
-        remaining = max(0, self.config.sync.batch_size - len(media_items))
-        if remaining > 0:
+        if not media_items:
             media_items.extend(
                 self.database.pending_upload_items(
-                    limit=remaining,
+                    limit=self.config.sync.batch_size,
                     item_types=("video_media",),
                 )
             )
