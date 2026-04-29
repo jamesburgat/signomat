@@ -200,8 +200,8 @@ struct ControlDashboardView: View {
             statusRow("Mode Detail", status.modeDetail ?? "None")
             statusRow("Inference", status.inf ? "Enabled" : "Disabled")
             statusRow("Classification", classificationStatusText(status))
-            statusRow("Classification Progress", classificationProgressText(status))
             statusRow("Pending Classification Trips", "\(status.classPending)")
+            activityProgressSection(status)
             statusRow("Last Detection", status.last ?? "None")
             statusRow("Last Detection Time", status.lastTS ?? "None")
             statusRow("Detections This Trip", "\(status.det)")
@@ -213,7 +213,6 @@ struct ControlDashboardView: View {
             statusRow("Storage Free", "\(status.freeMB) MB")
             statusRow("Storage Used", "\(status.usedMB) MB")
             statusRow("Upload Queue", "\(status.queue)")
-            statusRow("Upload Progress", uploadProgressText(status))
             statusRow("Sync State", status.sync)
             statusRow("Last Sync", status.lastSyncedAt ?? "None")
             statusRow("Pi Temp", temperatureText(status))
@@ -483,6 +482,63 @@ struct ControlDashboardView: View {
         }
     }
 
+    private func activityProgressSection(_ status: LiveStatus) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            progressPanel(
+                title: "Classification Progress",
+                summary: classificationProgressText(status),
+                detail: classificationDetailText(status),
+                fraction: classificationProgressFraction(status),
+                tint: .blue
+            )
+            progressPanel(
+                title: "Upload Progress",
+                summary: uploadProgressText(status),
+                detail: uploadDetailText(status),
+                fraction: uploadProgressFraction(status),
+                tint: .green
+            )
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func progressPanel(
+        title: String,
+        summary: String,
+        detail: String,
+        fraction: Double?,
+        tint: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(summary)
+                    .fontWeight(.semibold)
+                    .multilineTextAlignment(.trailing)
+            }
+
+            if let fraction {
+                ProgressView(value: fraction, total: 1)
+                    .tint(tint)
+                    .progressViewStyle(.linear)
+            } else {
+                ProgressView()
+                    .tint(tint)
+                    .progressViewStyle(.linear)
+            }
+
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
     private func displaySignLabel(_ label: String) -> String {
         label.replacingOccurrences(of: "_", with: " ").capitalized
     }
@@ -530,9 +586,36 @@ struct ControlDashboardView: View {
     }
 
     private func classificationProgressText(_ status: LiveStatus) -> String {
-        guard status.classRunning else { return "n/a" }
+        guard status.classRunning else {
+            if status.classPending > 0 {
+                return status.classLaunchable ? "Ready" : "Queued"
+            }
+            return "Idle"
+        }
         guard status.classTotal > 0 else { return "Starting..." }
         return "\(status.classProcessed)/\(status.classTotal) (\(status.classPct)%)"
+    }
+
+    private func classificationDetailText(_ status: LiveStatus) -> String {
+        if status.classRunning {
+            let tripID = status.classTripID ?? "pending trip"
+            if status.classTotal > 0 {
+                return "Processing \(tripID)"
+            }
+            return "Preparing classification for \(tripID)"
+        }
+        if status.classPending > 0 {
+            return status.classLaunchable
+                ? "\(status.classPending) trip(s) ready to classify"
+                : "\(status.classPending) trip(s) queued"
+        }
+        return "No pending post-trip classification work"
+    }
+
+    private func classificationProgressFraction(_ status: LiveStatus) -> Double? {
+        guard status.classRunning else { return 0 }
+        guard status.classTotal > 0 else { return nil }
+        return max(0, min(Double(status.classPct) / 100, 1))
     }
 
     private func uploadProgressText(_ status: LiveStatus) -> String {
@@ -543,6 +626,18 @@ struct ControlDashboardView: View {
             return "Idle"
         }
         return "Up to date"
+    }
+
+    private func uploadDetailText(_ status: LiveStatus) -> String {
+        if status.uploadPending > 0 || status.uploadTotal > 0 {
+            return "\(status.uploadSynced) synced of \(status.uploadTotal) total"
+        }
+        return "No uploads pending"
+    }
+
+    private func uploadProgressFraction(_ status: LiveStatus) -> Double {
+        guard status.uploadTotal > 0 else { return 0 }
+        return max(0, min(Double(status.uploadPct) / 100, 1))
     }
 
     private var trailCoordinates: [CLLocationCoordinate2D] {

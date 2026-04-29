@@ -153,7 +153,7 @@ struct ReviewTrainingView: View {
             }
 
             Picker("Review State", selection: $selectedReviewState) {
-                ForEach(ArchiveReviewState.allCases) { state in
+                ForEach(ArchiveReviewState.writableCases) { state in
                     Text(state.title).tag(state)
                 }
             }
@@ -422,7 +422,11 @@ private struct DetectionReviewEditor: View {
     init(detection: ArchiveDetection, saveAction: @escaping (ArchiveDetection) async -> Void) {
         self.detection = detection
         self.saveAction = saveAction
-        _draft = State(initialValue: detection)
+        var initialDraft = detection
+        if !initialDraft.reviewState.isWritable {
+            initialDraft.reviewState = .unreviewed
+        }
+        _draft = State(initialValue: initialDraft)
     }
 
     var body: some View {
@@ -430,11 +434,17 @@ private struct DetectionReviewEditor: View {
             Form {
                 Section("Review State") {
                     Picker("State", selection: $draft.reviewState) {
-                        ForEach(ArchiveReviewState.allCases) { state in
+                        ForEach(ArchiveReviewState.writableCases) { state in
                             Text(state.title).tag(state)
                         }
                     }
                     .pickerStyle(.segmented)
+
+                    if !detection.reviewState.isWritable {
+                        Text("This item was machine classified by the archive. Saving here will convert it to a manual review state.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Labels") {

@@ -289,17 +289,27 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
     }
 }
 
-enum ArchiveReviewState: String, Codable, CaseIterable, Identifiable {
+enum ArchiveReviewState: String, Codable, Identifiable {
     case unreviewed
+    case machineClassified = "machine_classified"
     case reviewed
     case falsePositive = "false_positive"
 
+    static let writableCases: [ArchiveReviewState] = [
+        .unreviewed,
+        .reviewed,
+        .falsePositive
+    ]
+
     var id: String { rawValue }
+    var isWritable: Bool { Self.writableCases.contains(self) }
 
     var title: String {
         switch self {
         case .unreviewed:
             return "Unreviewed"
+        case .machineClassified:
+            return "Machine Classified"
         case .reviewed:
             return "Confirmed Sign"
         case .falsePositive:
