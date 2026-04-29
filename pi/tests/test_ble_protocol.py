@@ -14,11 +14,16 @@ def test_device_status_includes_primary_alert():
                 "state": "running",
                 "running": True,
                 "current_trip_id": "2026-04-13_trip_001",
+                "current_stage": "classifying strong frames",
                 "processed_groups": 3,
                 "total_groups": 12,
                 "progress_pct": 25,
                 "pending_trip_count": 2,
+                "queued_trip_ids": ["2026-04-12_trip_003"],
                 "launchable": False,
+                "last_completed_trip_id": "2026-04-10_trip_001",
+                "last_completed_at": "2026-04-10T12:00:00Z",
+                "last_error": None,
             },
             "preview_base_url": "http://cornichon.local:8080",
             "preview_fallback_base_url": "http://10.1.76.38:8080",
@@ -37,6 +42,10 @@ def test_device_status_includes_primary_alert():
     assert payload["mode"] == "classifying"
     assert payload["class_pct"] == 25
     assert payload["class_trip_id"] == "2026-04-13_trip_001"
+    assert payload["class_stage"] == "classifying strong frames"
+    assert payload["class_queue"] == 1
+    assert payload["class_last_completed_trip_id"] == "2026-04-10_trip_001"
+    assert payload["class_last_completed_at"] == "2026-04-10T12:00:00Z"
     assert payload["preview_base_url"] == "http://cornichon.local:8080"
     assert payload["preview_fallback_base_url"] == "http://10.1.76.38:8080"
 

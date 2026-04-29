@@ -200,7 +200,6 @@ struct ControlDashboardView: View {
             statusRow("Mode Detail", status.modeDetail ?? "None")
             statusRow("Inference", status.inf ? "Enabled" : "Disabled")
             statusRow("Classification", classificationStatusText(status))
-            statusRow("Pending Classification Trips", "\(status.classPending)")
             activityProgressSection(status)
             statusRow("Last Detection", status.last ?? "None")
             statusRow("Last Detection Time", status.lastTS ?? "None")
@@ -491,6 +490,7 @@ struct ControlDashboardView: View {
                 fraction: classificationProgressFraction(status),
                 tint: .blue
             )
+            classificationDetailsPanel(status)
             progressPanel(
                 title: "Upload Progress",
                 summary: uploadProgressText(status),
@@ -500,6 +500,40 @@ struct ControlDashboardView: View {
             )
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func classificationDetailsPanel(_ status: LiveStatus) -> some View {
+        let details = classificationDetailRows(status)
+        if !details.isEmpty || (status.classLastError?.isEmpty == false) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Classification Details")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                ForEach(details, id: \.title) { item in
+                    HStack(alignment: .top) {
+                        Text(item.title)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(item.value)
+                            .fontWeight(.semibold)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .font(.caption)
+                }
+
+                if let error = status.classLastError, !error.isEmpty {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.secondary.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
     }
 
     private func progressPanel(
@@ -599,6 +633,9 @@ struct ControlDashboardView: View {
     private func classificationDetailText(_ status: LiveStatus) -> String {
         if status.classRunning {
             let tripID = status.classTripID ?? "pending trip"
+            if let stage = status.classStage, !stage.isEmpty {
+                return "\(displayMode(stage)) for \(tripID)"
+            }
             if status.classTotal > 0 {
                 return "Processing \(tripID)"
             }
@@ -616,6 +653,34 @@ struct ControlDashboardView: View {
         guard status.classRunning else { return 0 }
         guard status.classTotal > 0 else { return nil }
         return max(0, min(Double(status.classPct) / 100, 1))
+    }
+
+    private func classificationDetailRows(_ status: LiveStatus) -> [(title: String, value: String)] {
+        var rows: [(title: String, value: String)] = []
+
+        if let state = status.classState, !state.isEmpty {
+            rows.append(("State", displayMode(state)))
+        }
+        if let tripID = status.classTripID, !tripID.isEmpty {
+            rows.append(("Active Trip", tripID))
+        }
+        if let stage = status.classStage, !stage.isEmpty {
+            rows.append(("Stage", displayMode(stage)))
+        }
+        if status.classPending > 0 || status.classQueue > 0 {
+            rows.append(("Backlog", "\(status.classPending) pending, \(status.classQueue) queued"))
+        }
+        if let tripID = status.classLastCompletedTripID, !tripID.isEmpty {
+            rows.append(("Last Completed", tripID))
+        }
+        if let completedAt = status.classLastCompletedAt, !completedAt.isEmpty {
+            rows.append(("Completed At", completedAt))
+        }
+        if !status.classRunning && status.classPending == 0 && rows.isEmpty {
+            rows.append(("Latest Result", "No recent post-trip classification activity"))
+        }
+
+        return rows
     }
 
     private func uploadProgressText(_ status: LiveStatus) -> String {

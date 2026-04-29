@@ -26,11 +26,16 @@ struct DeviceStatusPayload: Codable {
     var classState: String?
     var classRunning: Bool?
     var classTripID: String?
+    var classStage: String?
     var classProcessed: Int?
     var classTotal: Int?
     var classPct: Int?
     var classPending: Int?
+    var classQueue: Int?
     var classLaunchable: Bool?
+    var classLastCompletedTripID: String?
+    var classLastCompletedAt: String?
+    var classLastError: String?
     var previewBaseURL: String?
     var previewFallbackBaseURL: String?
 
@@ -45,11 +50,16 @@ struct DeviceStatusPayload: Codable {
         case classState = "class_state"
         case classRunning = "class_running"
         case classTripID = "class_trip_id"
+        case classStage = "class_stage"
         case classProcessed = "class_processed"
         case classTotal = "class_total"
         case classPct = "class_pct"
         case classPending = "class_pending"
+        case classQueue = "class_queue"
         case classLaunchable = "class_launchable"
+        case classLastCompletedTripID = "class_last_completed_trip_id"
+        case classLastCompletedAt = "class_last_completed_at"
+        case classLastError = "class_last_error"
         case previewBaseURL = "preview_base_url"
         case previewFallbackBaseURL = "preview_fallback_base_url"
     }
@@ -192,11 +202,16 @@ struct LiveStatus {
     var classState: String?
     var classRunning = false
     var classTripID: String?
+    var classStage: String?
     var classProcessed = 0
     var classTotal = 0
     var classPct = 0
     var classPending = 0
+    var classQueue = 0
     var classLaunchable = false
+    var classLastCompletedTripID: String?
+    var classLastCompletedAt: String?
+    var classLastError: String?
     var previewBaseURL: String?
     var previewFallbackBaseURL: String?
     var uploadPending = 0
@@ -218,11 +233,16 @@ struct LiveStatus {
         classState = payload.classState
         classRunning = payload.classRunning ?? classRunning
         classTripID = payload.classTripID
+        classStage = payload.classStage
         classProcessed = payload.classProcessed ?? classProcessed
         classTotal = payload.classTotal ?? classTotal
         classPct = payload.classPct ?? classPct
         classPending = payload.classPending ?? classPending
+        classQueue = payload.classQueue ?? classQueue
         classLaunchable = payload.classLaunchable ?? classLaunchable
+        classLastCompletedTripID = payload.classLastCompletedTripID
+        classLastCompletedAt = payload.classLastCompletedAt
+        classLastError = payload.classLastError
         previewBaseURL = payload.previewBaseURL
         previewFallbackBaseURL = payload.previewFallbackBaseURL
     }
