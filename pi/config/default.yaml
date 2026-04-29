@@ -16,7 +16,7 @@ camera:
   rotation: 0
   codec: mp4v
   warmup_seconds: 1.0
-  chunk_seconds: 600
+  chunk_seconds: 60
   annotate_recording: true
   overlay_hold_seconds: 2.5
   retention_days: 14
@@ -80,6 +80,7 @@ sync:
   device_id: cornichon
   interval_seconds: 30.0
   request_timeout_seconds: 15.0
+  max_media_upload_mb: 95
 
 ble:
   enabled: true

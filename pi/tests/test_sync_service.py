@@ -294,6 +294,77 @@ def test_force_sync_marks_transient_media_failures_as_deferred(tmp_path, monkeyp
     database.close()
 
 
+def test_force_sync_marks_oversized_video_media_failed_and_local_only(tmp_path, monkeypatch):
+    config = load_config("pi/config/mock.yaml")
+    config.app.base_data_dir = str(tmp_path / "signomat-data")
+    config.sync.enabled = True
+    config.sync.base_url = "https://signomat-api.example.workers.dev"
+    config.sync.ingest_token = "token"
+    config.sync.device_id = "test-device"
+    config.sync.max_media_upload_mb = 1
+
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir(parents=True, exist_ok=True)
+    source_migration = (Path(__file__).resolve().parents[1] / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
+    (migrations_dir / "0001_initial.sql").write_text(source_migration, encoding="utf-8")
+
+    base_dir = tmp_path / "signomat-data"
+    video_path = base_dir / "trips" / "2026-03-30_trip_001" / "video" / "segment.mp4"
+    video_path.parent.mkdir(parents=True, exist_ok=True)
+    video_path.write_bytes(b"x" * (2 * 1024 * 1024))
+    (base_dir / "db").mkdir(parents=True, exist_ok=True)
+
+    database = Database(base_dir / "db" / "signomat.db", migrations_dir)
+    database.apply_migrations()
+
+    trip_id = "2026-03-30_trip_001"
+    database.create_trip(trip_id, True, True)
+    database.stop_trip(trip_id)
+    database.execute(
+        """
+        INSERT INTO video_segments(
+          video_segment_id, trip_id, start_timestamp_utc, end_timestamp_utc, file_path, file_size, duration_sec, upload_state
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("vid_oversize", trip_id, "2026-03-30T12:00:00Z", "2026-03-30T12:01:00Z", "trips/2026-03-30_trip_001/video/segment.mp4", video_path.stat().st_size, 60.0, "pending"),
+    )
+    database.enqueue_upload(
+        "video_media",
+        "trips/2026-03-30_trip_001/video/segment.mp4",
+        "video_segments",
+        "vid_oversize",
+        {"trip_id": trip_id},
+    )
+
+    service = SyncService(config, database)
+
+    def fail_if_called(*, bucket: str, key: str, file_path: Path, content_type: str) -> dict:
+        raise AssertionError("oversized media should not be uploaded")
+
+    monkeypatch.setattr(service, "_put_media", fail_if_called)
+
+    result = service.force_sync()
+
+    assert result["ok"] is True
+    status = database.upload_status()
+    assert status.get("failed") == 1
+    assert status.get("pending", 0) == 0
+
+    queue_row = database.query_one("SELECT state, last_error FROM upload_queue LIMIT 1")
+    assert queue_row is not None
+    assert queue_row["state"] == "failed"
+    assert "exceeds upload limit" in (queue_row["last_error"] or "")
+
+    segment = database.video_segment_by_id("vid_oversize")
+    assert segment is not None
+    assert segment["upload_state"] == "local_only"
+
+    reported = service.status()
+    assert reported["last_result"] == "attention"
+
+    database.close()
+
+
 def test_force_sync_prioritizes_new_media_assets_before_old_video_retries(tmp_path, monkeypatch):
     config = load_config("pi/config/mock.yaml")
     config.app.base_data_dir = str(tmp_path / "signomat-data")

@@ -108,6 +108,7 @@ class SyncSection(BaseModel):
     device_id: str | None = None
     interval_seconds: float = 60.0
     request_timeout_seconds: float = 15.0
+    max_media_upload_mb: int | None = 95
 
 
 class BLESection(BaseModel):
@@ -268,6 +269,7 @@ def env_overrides() -> dict[str, Any]:
         "device_id": _env_text("SIGNOMAT_SYNC_DEVICE_ID"),
         "interval_seconds": _env_float("SIGNOMAT_SYNC_INTERVAL_SECONDS"),
         "request_timeout_seconds": _env_float("SIGNOMAT_SYNC_REQUEST_TIMEOUT_SECONDS"),
+        "max_media_upload_mb": _env_int("SIGNOMAT_SYNC_MAX_MEDIA_UPLOAD_MB"),
     }
     for key, value in sync_mapping.items():
         if value is not None:

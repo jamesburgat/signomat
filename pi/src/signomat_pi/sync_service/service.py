@@ -29,9 +29,17 @@ class SyncService:
 
     def status(self) -> dict:
         summary = self.database.upload_status()
-        summary["last_result"] = self.last_result
+        reported_result = self.last_result
+        reported_error = self.last_error
+        if summary.get("pending", 0) == 0:
+            if summary.get("failed", 0) > 0:
+                reported_result = "attention"
+            elif reported_result in {"error", "partial", "deferred"}:
+                reported_result = "idle"
+                reported_error = None
+        summary["last_result"] = reported_result
         summary["last_synced_at"] = self.last_synced_at
-        summary["last_error"] = self.last_error
+        summary["last_error"] = reported_error
         summary["enabled"] = self.config.sync.enabled
         return summary
 
@@ -118,6 +126,7 @@ class SyncService:
             return {"ok": True, "counts": {"items": 0, "synced": 0}}
 
         synced = 0
+        skipped = 0
         hard_errors: list[str] = []
         deferred_errors: list[str] = []
         for item in media_items:
@@ -133,6 +142,13 @@ class SyncService:
                 message = f"media file missing on disk: {local_path}"
                 self._mark_upload_failure([queue_id], item["retry_count"], message)
                 hard_errors.append(message)
+                continue
+            oversize_message = self._oversize_media_message(local_path, absolute_path)
+            if oversize_message:
+                self.database.mark_upload_items_state([queue_id], "failed", last_error=oversize_message)
+                if item["related_table"] in {"detections", "video_segments"}:
+                    self.database.set_related_upload_state(item["related_table"], item["related_id"], "local_only")
+                skipped += 1
                 continue
             bucket = _bucket_name_for_path(local_path)
             content_type = mimetypes.guess_type(local_path)[0] or "application/octet-stream"
@@ -155,7 +171,7 @@ class SyncService:
             "hard_error": bool(hard_errors),
             "deferred": bool(deferred_errors) and not hard_errors,
             "message": (hard_errors or deferred_errors or [None])[0],
-            "counts": {"items": len(media_items), "synced": synced},
+            "counts": {"items": len(media_items), "synced": synced, "skipped": skipped},
         }
 
     def _run_metadata_sync(self) -> dict:
@@ -272,6 +288,17 @@ class SyncService:
         if candidate.is_absolute():
             return candidate
         return self.base_data_dir / candidate
+
+    def _oversize_media_message(self, local_path: str, absolute_path: Path) -> str | None:
+        limit_mb = self.config.sync.max_media_upload_mb
+        if limit_mb is None or limit_mb <= 0:
+            return None
+        size_bytes = absolute_path.stat().st_size
+        limit_bytes = limit_mb * 1024 * 1024
+        if size_bytes <= limit_bytes:
+            return None
+        size_mb = size_bytes / 1024 / 1024
+        return f"media kept local; exceeds upload limit ({size_mb:.1f} MB > {limit_mb} MB): {local_path}"
 
     def _mark_upload_failure(self, queue_ids: list[str], retry_count: int, message: str) -> None:
         next_attempt_utc = _backoff_time_text(retry_count)

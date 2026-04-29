@@ -71,6 +71,7 @@ sync:
   device_id: signomat-mock
   interval_seconds: 15.0
   request_timeout_seconds: 10.0
+  max_media_upload_mb: 95
 
 ble:
   enabled: true
