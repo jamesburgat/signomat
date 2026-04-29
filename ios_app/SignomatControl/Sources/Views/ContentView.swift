@@ -201,6 +201,7 @@ struct ControlDashboardView: View {
             statusRow("Inference", status.inf ? "Enabled" : "Disabled")
             statusRow("Classification", classificationStatusText(status))
             activityProgressSection(status)
+            storageUsagePanel(status)
             statusRow("Last Detection", status.last ?? "None")
             statusRow("Last Detection Time", status.lastTS ?? "None")
             statusRow("Detections This Trip", "\(status.det)")
@@ -209,8 +210,6 @@ struct ControlDashboardView: View {
             statusRow("Speed", speedText(status))
             statusRow("Trail Points", "\(viewModel.manager.tripBreadcrumbs.count)")
             statusRow("Trail Distance", trailDistanceText)
-            statusRow("Storage Free", "\(status.freeMB) MB")
-            statusRow("Storage Used", "\(status.usedMB) MB")
             statusRow("Upload Queue", "\(status.queue)")
             statusRow("Sync State", status.sync)
             statusRow("Last Sync", status.lastSyncedAt ?? "None")
@@ -502,6 +501,16 @@ struct ControlDashboardView: View {
         .padding(.vertical, 4)
     }
 
+    private func storageUsagePanel(_ status: LiveStatus) -> some View {
+        progressPanel(
+            title: "Storage Used",
+            summary: storageUsageText(status),
+            detail: storageDetailText(status),
+            fraction: storageUsageFraction(status),
+            tint: storageUsageTint(status)
+        )
+    }
+
     @ViewBuilder
     private func classificationDetailsPanel(_ status: LiveStatus) -> some View {
         let details = classificationDetailRows(status)
@@ -703,6 +712,33 @@ struct ControlDashboardView: View {
     private func uploadProgressFraction(_ status: LiveStatus) -> Double {
         guard status.uploadTotal > 0 else { return 0 }
         return max(0, min(Double(status.uploadPct) / 100, 1))
+    }
+
+    private func storageUsageText(_ status: LiveStatus) -> String {
+        guard status.totalMB > 0 else { return "Unavailable" }
+        let pct = Int(round((Double(status.usedMB) / Double(max(status.totalMB, 1))) * 100))
+        return "\(status.usedMB) MB (\(pct)%)"
+    }
+
+    private func storageDetailText(_ status: LiveStatus) -> String {
+        guard status.totalMB > 0 else { return "Storage totals not reported yet" }
+        return "\(status.freeMB) MB free of \(status.totalMB) MB total"
+    }
+
+    private func storageUsageFraction(_ status: LiveStatus) -> Double {
+        guard status.totalMB > 0 else { return 0 }
+        return max(0, min(Double(status.usedMB) / Double(max(status.totalMB, 1)), 1))
+    }
+
+    private func storageUsageTint(_ status: LiveStatus) -> Color {
+        let fraction = storageUsageFraction(status)
+        if fraction >= 0.9 {
+            return .red
+        }
+        if fraction >= 0.75 {
+            return .orange
+        }
+        return .teal
     }
 
     private var trailCoordinates: [CLLocationCoordinate2D] {
