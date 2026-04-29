@@ -291,6 +291,7 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
 
 enum ArchiveReviewState: String, Codable, Identifiable {
     case unreviewed
+    case classificationUnknown = "classification_unknown"
     case machineClassified = "machine_classified"
     case reviewed
     case falsePositive = "false_positive"
@@ -308,6 +309,8 @@ enum ArchiveReviewState: String, Codable, Identifiable {
         switch self {
         case .unreviewed:
             return "Unreviewed"
+        case .classificationUnknown:
+            return "Classification Unknown"
         case .machineClassified:
             return "Machine Classified"
         case .reviewed:
