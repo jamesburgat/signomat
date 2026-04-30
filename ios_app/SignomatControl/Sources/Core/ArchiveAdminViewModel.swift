@@ -305,6 +305,17 @@ enum ArchiveReviewState: String, Codable, Identifiable {
     var id: String { rawValue }
     var isWritable: Bool { Self.writableCases.contains(self) }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = ArchiveReviewState(rawValue: rawValue) ?? .classificationUnknown
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
     var title: String {
         switch self {
         case .unreviewed:
