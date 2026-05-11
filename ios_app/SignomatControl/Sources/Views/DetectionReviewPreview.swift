@@ -154,7 +154,7 @@ private final class RemoteReviewImageLoader: ObservableObject {
             return
         }
 
-        if lastTaskIdentity == taskIdentity, image != nil || didFailAll {
+        if lastTaskIdentity == taskIdentity, image != nil {
             return
         }
 
@@ -164,7 +164,8 @@ private final class RemoteReviewImageLoader: ObservableObject {
 
         for url in urls {
             do {
-                let (data, response) = try await URLSession.shared.data(from: url)
+                let request = freshImageRequest(for: url)
+                let (data, response) = try await URLSession.shared.data(for: request)
                 guard Task.isCancelled == false else { return }
                 if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                     continue
@@ -194,17 +195,12 @@ private final class DetectionCropPreviewLoader: ObservableObject {
     private var lastLoadFailed = false
 
     func load(for detection: ArchiveDetection) async {
-        guard detection.persistedCropPreviewURLs.isEmpty else {
-            reset()
-            return
-        }
-
         guard let request = detection.clientSideCropRequest else {
             reset()
             return
         }
 
-        if lastRequestKey == request.identity && (renderedImage != nil || lastLoadFailed || isLoadingClientCrop) {
+        if lastRequestKey == request.identity && (renderedImage != nil || isLoadingClientCrop) {
             return
         }
 
@@ -276,7 +272,8 @@ private enum DetectionCropRenderer {
             return Data(referencing: cached)
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let request = freshImageRequest(for: url)
+        let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
             throw DetectionCropError.invalidResponse
         }
@@ -347,4 +344,12 @@ private enum DetectionCropError: Error {
     case invalidBounds
     case cropFailed
     case encodingFailed
+}
+
+private func freshImageRequest(for url: URL) -> URLRequest {
+    var request = URLRequest(url: url)
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    request.timeoutInterval = 30
+    request.setValue("image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
+    return request
 }
