@@ -345,12 +345,12 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
     var id: String { eventId }
     var eventID: String { eventId }
 
-    var persistedCropPreviewURL: URL? {
-        url(from: signCropThumbnailUrl ?? signCropUrl)
+    var persistedCropPreviewURLs: [URL] {
+        urls(from: [signCropThumbnailUrl, signCropUrl])
     }
 
-    var framePreviewFallbackURL: URL? {
-        url(from: cleanThumbnailUrl ?? cleanFrameUrl ?? annotatedThumbnailUrl ?? annotatedFrameUrl)
+    var framePreviewFallbackURLs: [URL] {
+        urls(from: [cleanThumbnailUrl, cleanFrameUrl, annotatedThumbnailUrl, annotatedFrameUrl])
     }
 
     var clientSideCropRequest: DetectionCropRequest? {
@@ -374,14 +374,35 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
         )
     }
 
-    var secondaryContextImageURL: URL? {
-        guard persistedCropPreviewURL != nil || clientSideCropRequest != nil else { return nil }
-        return url(from: cleanThumbnailUrl ?? cleanFrameUrl)
+    var secondaryContextImageURLs: [URL] {
+        guard persistedCropPreviewURLs.isEmpty == false || clientSideCropRequest != nil else { return [] }
+        return urls(from: [cleanThumbnailUrl, cleanFrameUrl])
     }
 
-    private func url(from raw: String?) -> URL? {
-        guard let raw, !raw.isEmpty else { return nil }
-        return URL(string: raw)
+    var previewIdentity: String {
+        let cropIdentity = clientSideCropRequest?.identity ?? "no-client-crop"
+        let persisted = persistedCropPreviewURLs.map(\.absoluteString).joined(separator: "|")
+        let fallback = framePreviewFallbackURLs.map(\.absoluteString).joined(separator: "|")
+        return "\(eventId)|\(persisted)|\(fallback)|\(cropIdentity)"
+    }
+
+    private func urls(from rawValues: [String?]) -> [URL] {
+        var seen = Set<String>()
+        var resolved: [URL] = []
+
+        for rawValue in rawValues {
+            guard
+                let rawValue,
+                rawValue.isEmpty == false,
+                let url = URL(string: rawValue),
+                seen.insert(url.absoluteString).inserted
+            else {
+                continue
+            }
+            resolved.append(url)
+        }
+
+        return resolved
     }
 }
 

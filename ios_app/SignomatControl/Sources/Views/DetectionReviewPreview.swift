@@ -7,6 +7,7 @@ struct DetectionReviewPreview: View {
     let detection: ArchiveDetection
 
     @StateObject private var cropLoader = DetectionCropPreviewLoader()
+    @State private var persistedCropFailed = false
 
     private let primarySize = CGSize(width: 132, height: 100)
     private let secondarySize = CGSize(width: 52, height: 40)
@@ -17,8 +18,8 @@ struct DetectionReviewPreview: View {
                 .frame(width: primarySize.width, height: primarySize.height)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
 
-            if shouldShowSecondaryContext, let contextURL = detection.secondaryContextImageURL {
-                RemoteReviewImage(url: contextURL, placeholder: placeholderImage)
+            if shouldShowSecondaryContext, detection.secondaryContextImageURLs.isEmpty == false {
+                RemoteReviewImage(urls: detection.secondaryContextImageURLs, placeholder: placeholderImage)
                     .frame(width: secondarySize.width, height: secondarySize.height)
                     .background(.thinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -30,23 +31,30 @@ struct DetectionReviewPreview: View {
             }
         }
         .frame(width: primarySize.width, height: primarySize.height)
-        .task(id: detection.eventID) {
+        .task(id: detection.previewIdentity) {
+            persistedCropFailed = false
             await cropLoader.load(for: detection)
         }
     }
 
     @ViewBuilder
     private var primaryPreview: some View {
-        if let url = detection.persistedCropPreviewURL {
-            RemoteReviewImage(url: url, placeholder: placeholderImage)
+        if detection.persistedCropPreviewURLs.isEmpty == false, persistedCropFailed == false {
+            RemoteReviewImage(
+                urls: detection.persistedCropPreviewURLs,
+                placeholder: placeholderImage,
+                onFailure: {
+                    persistedCropFailed = true
+                }
+            )
         } else if let image = cropLoader.renderedImage {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
         } else if cropLoader.isLoadingClientCrop {
             placeholderImage
-        } else if let url = detection.framePreviewFallbackURL {
-            RemoteReviewImage(url: url, placeholder: placeholderImage)
+        } else if detection.framePreviewFallbackURLs.isEmpty == false {
+            RemoteReviewImage(urls: detection.framePreviewFallbackURLs, placeholder: placeholderImage)
         } else {
             placeholderImage
         }
@@ -54,25 +62,25 @@ struct DetectionReviewPreview: View {
 
     private var shouldShowSecondaryContext: Bool {
         switch primaryPreviewMode {
-        case .persistedCrop(let primaryURL):
-            guard let contextURL = detection.secondaryContextImageURL else { return false }
-            return contextURL != primaryURL
+        case .persistedCrop:
+            guard let contextURL = detection.secondaryContextImageURLs.first else { return false }
+            return detection.persistedCropPreviewURLs.contains(contextURL) == false
         case .renderedCrop:
-            return detection.secondaryContextImageURL != nil
+            return detection.secondaryContextImageURLs.isEmpty == false
         case .fallbackFrame, .placeholder:
             return false
         }
     }
 
     private var primaryPreviewMode: PrimaryPreviewMode {
-        if let url = detection.persistedCropPreviewURL {
-            return .persistedCrop(url)
+        if detection.persistedCropPreviewURLs.isEmpty == false, persistedCropFailed == false {
+            return .persistedCrop
         }
         if cropLoader.renderedImage != nil {
             return .renderedCrop
         }
-        if let url = detection.framePreviewFallbackURL, cropLoader.isLoadingClientCrop == false {
-            return .fallbackFrame(url)
+        if detection.framePreviewFallbackURLs.isEmpty == false, cropLoader.isLoadingClientCrop == false {
+            return .fallbackFrame
         }
         return .placeholder
     }
@@ -92,31 +100,88 @@ struct DetectionReviewPreview: View {
 }
 
 private enum PrimaryPreviewMode {
-    case persistedCrop(URL)
+    case persistedCrop
     case renderedCrop
-    case fallbackFrame(URL)
+    case fallbackFrame
     case placeholder
 }
 
 private struct RemoteReviewImage<Placeholder: View>: View {
-    let url: URL
+    let urls: [URL]
     let placeholder: Placeholder
+    var onFailure: (() -> Void)?
+
+    @StateObject private var loader = RemoteReviewImageLoader()
 
     var body: some View {
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case .empty:
-                placeholder
-            case .success(let image):
-                image
+        Group {
+            if let image = loader.image {
+                Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-            case .failure:
-                placeholder
-            @unknown default:
+            } else {
                 placeholder
             }
         }
+        .task(id: taskIdentity) {
+            await loader.load(urls: urls)
+        }
+        .onChange(of: loader.didFailAll) { _, didFailAll in
+            if didFailAll {
+                onFailure?()
+            }
+        }
+    }
+
+    private var taskIdentity: String {
+        urls.map(\.absoluteString).joined(separator: "|")
+    }
+}
+
+@MainActor
+private final class RemoteReviewImageLoader: ObservableObject {
+    @Published private(set) var image: UIImage?
+    @Published private(set) var didFailAll = false
+
+    private var lastTaskIdentity: String?
+
+    func load(urls: [URL]) async {
+        let taskIdentity = urls.map(\.absoluteString).joined(separator: "|")
+        guard taskIdentity.isEmpty == false else {
+            image = nil
+            didFailAll = true
+            lastTaskIdentity = nil
+            return
+        }
+
+        if lastTaskIdentity == taskIdentity, image != nil || didFailAll {
+            return
+        }
+
+        lastTaskIdentity = taskIdentity
+        image = nil
+        didFailAll = false
+
+        for url in urls {
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                guard Task.isCancelled == false else { return }
+                if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                    continue
+                }
+                guard let resolvedImage = UIImage(data: data) else {
+                    continue
+                }
+                image = resolvedImage
+                return
+            } catch is CancellationError {
+                return
+            } catch {
+                continue
+            }
+        }
+
+        didFailAll = true
     }
 }
 
@@ -129,7 +194,7 @@ private final class DetectionCropPreviewLoader: ObservableObject {
     private var lastLoadFailed = false
 
     func load(for detection: ArchiveDetection) async {
-        guard detection.persistedCropPreviewURL == nil else {
+        guard detection.persistedCropPreviewURLs.isEmpty else {
             reset()
             return
         }
