@@ -7,21 +7,23 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		172F7F198B1A4E18B1CC87A7 /* ArchiveAdminViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A99110312A0A4E0EB4F1AFD3 /* ArchiveAdminViewModel.swift */; };
+		30F80A249541FEDA7639DEC3 /* DetectionReviewPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF5827E3A0CC3EF88E53068A /* DetectionReviewPreview.swift */; };
 		48D78CB0C0EAC6C9AAFA40F8 /* SignomatControlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA7AB24B0E3266B3460A540 /* SignomatControlApp.swift */; };
 		5C13AF58470E21892A48D425 /* StatusViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497CBB191313354EC6F66BFD /* StatusViewModel.swift */; };
 		77D25FB0CD2C6FFB7F0F8D53 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76FC7E8DEEFDF89A83F5880 /* ContentView.swift */; };
+		8485E771D3ECFF94960E6BFD /* ArchiveAdminViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 566A59DF1714164DF0A38605 /* ArchiveAdminViewModel.swift */; };
 		BB9B300D0FBFA55E8380995E /* BLEProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA593E53BFCC2CD205EBC8F /* BLEProtocol.swift */; };
 		E1680D59EAC8D93F1B76376D /* BLEManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3C515D1EF4D77775B5F9AE8 /* BLEManager.swift */; };
-		F4E95B61CB2D4AF89C29E3A4 /* ReviewTrainingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F2F035BDDA4B86A8D476A9 /* ReviewTrainingView.swift */; };
+		F5F6ED1AEAA01719650D035A /* ReviewTrainingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F3A6742B7732BF23C35C5C /* ReviewTrainingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		35C455D9EB77A2E57F721ACB /* SignomatControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SignomatControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		31F3A6742B7732BF23C35C5C /* ReviewTrainingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewTrainingView.swift; sourceTree = "<group>"; };
+		35C455D9EB77A2E57F721ACB /* SignomatControl.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SignomatControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		497CBB191313354EC6F66BFD /* StatusViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewModel.swift; sourceTree = "<group>"; };
+		566A59DF1714164DF0A38605 /* ArchiveAdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveAdminViewModel.swift; sourceTree = "<group>"; };
 		8BA7AB24B0E3266B3460A540 /* SignomatControlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignomatControlApp.swift; sourceTree = "<group>"; };
-		A99110312A0A4E0EB4F1AFD3 /* ArchiveAdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveAdminViewModel.swift; sourceTree = "<group>"; };
-		C6F2F035BDDA4B86A8D476A9 /* ReviewTrainingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewTrainingView.swift; sourceTree = "<group>"; };
+		AF5827E3A0CC3EF88E53068A /* DetectionReviewPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionReviewPreview.swift; sourceTree = "<group>"; };
 		E76FC7E8DEEFDF89A83F5880 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F3C515D1EF4D77775B5F9AE8 /* BLEManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEManager.swift; sourceTree = "<group>"; };
 		FAA593E53BFCC2CD205EBC8F /* BLEProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEProtocol.swift; sourceTree = "<group>"; };
@@ -31,7 +33,7 @@
 		0494B4B88B9D3F8DA3FFC4D5 /* Core */ = {
 			isa = PBXGroup;
 			children = (
-				A99110312A0A4E0EB4F1AFD3 /* ArchiveAdminViewModel.swift */,
+				566A59DF1714164DF0A38605 /* ArchiveAdminViewModel.swift */,
 				F3C515D1EF4D77775B5F9AE8 /* BLEManager.swift */,
 				FAA593E53BFCC2CD205EBC8F /* BLEProtocol.swift */,
 				497CBB191313354EC6F66BFD /* StatusViewModel.swift */,
@@ -43,7 +45,8 @@
 			isa = PBXGroup;
 			children = (
 				E76FC7E8DEEFDF89A83F5880 /* ContentView.swift */,
-				C6F2F035BDDA4B86A8D476A9 /* ReviewTrainingView.swift */,
+				AF5827E3A0CC3EF88E53068A /* DetectionReviewPreview.swift */,
+				31F3A6742B7732BF23C35C5C /* ReviewTrainingView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -110,7 +113,9 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = BC4546F95D6B2B37325EA594 /* Build configuration list for PBXProject "SignomatControl" */;
 			developmentRegion = en;
@@ -136,11 +141,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				172F7F198B1A4E18B1CC87A7 /* ArchiveAdminViewModel.swift in Sources */,
+				8485E771D3ECFF94960E6BFD /* ArchiveAdminViewModel.swift in Sources */,
 				E1680D59EAC8D93F1B76376D /* BLEManager.swift in Sources */,
 				BB9B300D0FBFA55E8380995E /* BLEProtocol.swift in Sources */,
 				77D25FB0CD2C6FFB7F0F8D53 /* ContentView.swift in Sources */,
-				F4E95B61CB2D4AF89C29E3A4 /* ReviewTrainingView.swift in Sources */,
+				30F80A249541FEDA7639DEC3 /* DetectionReviewPreview.swift in Sources */,
+				F5F6ED1AEAA01719650D035A /* ReviewTrainingView.swift in Sources */,
 				48D78CB0C0EAC6C9AAFA40F8 /* SignomatControlApp.swift in Sources */,
 				5C13AF58470E21892A48D425 /* StatusViewModel.swift in Sources */,
 			);
@@ -153,17 +159,17 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = JMX56U3BYB;
 				INFOPLIST_FILE = SignomatControl/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = (
+					UIInterfaceOrientationPortrait,
+				);
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.jamesburgat.signomatcontrol;
+				PRODUCT_BUNDLE_IDENTIFIER = com.signomat.control;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.1;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -207,7 +213,6 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -228,7 +233,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -272,7 +276,6 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -286,7 +289,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -297,17 +299,17 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = JMX56U3BYB;
 				INFOPLIST_FILE = SignomatControl/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = (
+					UIInterfaceOrientationPortrait,
+				);
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.jamesburgat.signomatcontrol;
+				PRODUCT_BUNDLE_IDENTIFIER = com.signomat.control;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.1;
 				TARGETED_DEVICE_FAMILY = "1,2";

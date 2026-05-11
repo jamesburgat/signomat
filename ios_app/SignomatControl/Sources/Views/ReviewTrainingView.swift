@@ -328,7 +328,7 @@ private struct DetectionReviewCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                previewImage
+                DetectionReviewPreview(detection: detection)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(detection.specificLabel ?? detection.categoryLabel)
@@ -370,64 +370,6 @@ private struct DetectionReviewCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.secondary.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    @ViewBuilder
-    private var previewImage: some View {
-        if let url = detection.primaryReviewImageURL {
-            ZStack(alignment: .bottomTrailing) {
-                reviewImage(url: url)
-                    .frame(width: 132, height: 100)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-
-                if let contextURL = detection.secondaryContextImageURL, contextURL != url {
-                    reviewImage(url: contextURL)
-                        .frame(width: 52, height: 40)
-                        .background(.thinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.white.opacity(0.85), lineWidth: 1)
-                        )
-                        .padding(6)
-                }
-            }
-            .frame(width: 132, height: 100)
-        } else {
-            imagePlaceholder
-                .frame(width: 132, height: 100)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-        }
-    }
-
-    private func reviewImage(url: URL) -> some View {
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case .empty:
-                imagePlaceholder
-            case .success(let image):
-                image
-                    .resizable()
-                    .scaledToFill()
-            case .failure:
-                imagePlaceholder
-            @unknown default:
-                imagePlaceholder
-            }
-        }
-    }
-
-    private var imagePlaceholder: some View {
-        ZStack {
-            Color.secondary.opacity(0.15)
-            VStack(spacing: 6) {
-                Image(systemName: "photo")
-                    .foregroundStyle(.secondary)
-                Text("No Cloudflare image")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
     }
 }
 

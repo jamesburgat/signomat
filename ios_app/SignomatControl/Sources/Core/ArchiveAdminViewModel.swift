@@ -345,17 +345,38 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
     var id: String { eventId }
     var eventID: String { eventId }
 
-    var primaryReviewImageURL: URL? {
-        url(from: signCropThumbnailUrl ?? signCropUrl ?? cleanThumbnailUrl ?? cleanFrameUrl ?? annotatedThumbnailUrl ?? annotatedFrameUrl)
+    var persistedCropPreviewURL: URL? {
+        url(from: signCropThumbnailUrl ?? signCropUrl)
+    }
+
+    var framePreviewFallbackURL: URL? {
+        url(from: cleanThumbnailUrl ?? cleanFrameUrl ?? annotatedThumbnailUrl ?? annotatedFrameUrl)
+    }
+
+    var clientSideCropRequest: DetectionCropRequest? {
+        guard
+            let sourceURL = url(from: cleanFrameUrl),
+            let bboxLeft,
+            let bboxTop,
+            let bboxRight,
+            let bboxBottom
+        else {
+            return nil
+        }
+
+        return DetectionCropRequest(
+            cacheKey: eventId,
+            sourceURL: sourceURL,
+            bboxLeft: bboxLeft,
+            bboxTop: bboxTop,
+            bboxRight: bboxRight,
+            bboxBottom: bboxBottom
+        )
     }
 
     var secondaryContextImageURL: URL? {
-        guard cropImageURL != nil else { return nil }
+        guard persistedCropPreviewURL != nil || clientSideCropRequest != nil else { return nil }
         return url(from: cleanThumbnailUrl ?? cleanFrameUrl)
-    }
-
-    private var cropImageURL: URL? {
-        url(from: signCropThumbnailUrl ?? signCropUrl)
     }
 
     private func url(from raw: String?) -> URL? {
