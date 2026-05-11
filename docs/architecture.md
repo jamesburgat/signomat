@@ -45,7 +45,7 @@ The Pi runtime is a single-process orchestrator with dedicated worker threads:
 - `capture_service`: owns camera access, the latest frame cache, and chunked video writing.
 - `gps_service`: samples GPS continuously during active trips and keeps a recent ring buffer.
 - `inference_service`: runs a modular pipeline over the latest frame, deduplicates, saves assets, and persists events.
-- `sync_service`: persists an upload queue now and becomes the network sync worker in Phase 3.
+- `sync_service`: persists the durable upload queue and is the place where end-to-end hosted archive sync still needs the most hardening/integration work.
 - `local_api`: exposes FastAPI status, debugging, and control endpoints.
 - `ble_control_service`: uses the same control surface as the local API, but over BLE.
 
@@ -56,9 +56,9 @@ The Pi runtime is a single-process orchestrator with dedicated worker threads:
 - The local database is the source of truth, while files hold media assets.
 - The upload queue is local and durable so networking is never on the critical path for capture.
 
-## Archive Direction
+## Archive Stack
 
-- `archive/frontend`: public browsing UI and later protected admin/review mode.
-- `archive/worker_api`: Cloudflare Worker ingest API, admin mutations, and public read endpoints.
-- `archive/shared`: TypeScript schema contracts shared between front end and worker.
-
+- `archive/frontend`: the current archive SPA with a public map, trip detail, detection detail, admin review, and training draft screens.
+- `archive/worker_api`: the Cloudflare Worker that serves both the SPA assets and the JSON API, with D1 for metadata and R2 for media.
+- `archive/shared`: TypeScript schema contracts shared between the frontend and Worker.
+- The repo is currently configured for a single-host deployment model where the Worker serves the UI and API together on `signs.jamesburgat.com`.

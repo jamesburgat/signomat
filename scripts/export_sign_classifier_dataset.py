@@ -3,10 +3,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from collections import Counter, defaultdict
 from pathlib import Path
 import re
 from typing import Any
+import urllib.error
+import urllib.parse
+import urllib.request
 
 import cv2
 import yaml
@@ -14,6 +18,7 @@ import yaml
 
 DEFAULT_TAXONOMY_PATH = "training/classifier_taxonomy_us.yaml"
 DEFAULT_OUTPUT_DIR = "data/training/exports/classifier_us_signs"
+DEFAULT_ARCHIVE_OUTPUT_DIR = "data/training/exports/classifier_archive_signs"
 
 def load_manifest_records(manifest_path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
@@ -113,6 +118,134 @@ def crop_filename(record: dict[str, Any], class_id: str) -> str:
     digest = hashlib.sha1(digest_source.encode("utf-8")).hexdigest()[:12]
     stem = Path(image_path).stem or "crop"
     return f"{stem}_{digest}.jpg"
+
+
+def load_archive_export(
+    archive_export: Path | None,
+    archive_export_url: str | None,
+    timeout_seconds: float,
+    archive_auth_token: str | None,
+) -> tuple[dict[str, Any], str]:
+    if archive_export and archive_export_url:
+        raise SystemExit("Use either --archive-export or --archive-export-url, not both.")
+    if archive_export:
+        return json.loads(archive_export.read_text(encoding="utf-8")), str(archive_export)
+    if archive_export_url:
+        headers = {"Accept": "application/json"}
+        if archive_auth_token:
+            headers["Authorization"] = f"Bearer {archive_auth_token}"
+        request = urllib.request.Request(archive_export_url, headers=headers)
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            return json.loads(response.read().decode("utf-8")), archive_export_url
+    raise SystemExit("Archive export mode requires --archive-export or --archive-export-url.")
+
+
+def local_path_from_source(source: str) -> Path | None:
+    parsed = urllib.parse.urlparse(source)
+    if parsed.scheme in ("", None):
+        return Path(source)
+    if parsed.scheme == "file":
+        return Path(urllib.request.url2pathname(parsed.path))
+    return None
+
+
+def suffix_for_source(source: str, content_type: str | None = None) -> str:
+    parsed = urllib.parse.urlparse(source)
+    suffix = Path(parsed.path).suffix.lower()
+    if suffix in {".jpg", ".jpeg", ".png", ".webp"}:
+        return suffix
+    if content_type == "image/png":
+        return ".png"
+    if content_type == "image/webp":
+        return ".webp"
+    return ".jpg"
+
+
+def cache_archive_image(source: str, cache_dir: Path, timeout_seconds: float) -> Path:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    local_path = local_path_from_source(source)
+    if local_path is not None:
+        if not local_path.exists():
+            raise FileNotFoundError(f"archive image source does not exist: {local_path}")
+        return local_path.resolve()
+
+    request = urllib.request.Request(source, headers={"User-Agent": "signomat-archive-classifier-export/0.1"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            content_type = response.headers.get_content_type()
+            suffix = suffix_for_source(source, content_type)
+            digest = hashlib.sha1(source.encode("utf-8")).hexdigest()
+            target = cache_dir / f"{digest}{suffix}"
+            if target.exists():
+                return target
+            payload = response.read()
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"failed to download archive image: {source} ({exc})") from exc
+
+    target.write_bytes(payload)
+    return target
+
+
+def archive_detection_bbox(record: dict[str, Any]) -> list[float] | None:
+    keys = ("bboxLeft", "bboxTop", "bboxRight", "bboxBottom")
+    if not all(record.get(key) is not None for key in keys):
+        return None
+    return [float(record[key]) for key in keys]
+
+
+def archive_label_for_export(record: dict[str, Any], label_source: str) -> str | None:
+    specific = str(record.get("specificLabel") or "").strip()
+    category = str(record.get("categoryLabel") or "").strip()
+    if label_source == "specific":
+        return specific or None
+    if label_source == "category":
+        return category or None
+    return specific or category or None
+
+
+def archive_frame_source(record: dict[str, Any]) -> str | None:
+    for key in ("cleanFrameUrl", "annotatedFrameUrl"):
+        value = record.get(key)
+        if value:
+            return str(value)
+    return None
+
+
+def slugify_label(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+    return slug or "unknown_sign"
+
+
+def archive_class_id(label: str, label_map: dict[str, str], class_map: dict[str, str]) -> str:
+    existing = label_map.get(label)
+    if existing:
+        return existing
+
+    base = slugify_label(label)
+    candidate = base
+    if candidate in class_map and class_map[candidate] != label:
+        suffix = hashlib.sha1(label.encode("utf-8")).hexdigest()[:6]
+        candidate = f"{base}_{suffix}"
+    label_map[label] = candidate
+    class_map[candidate] = label
+    return candidate
+
+
+def archive_crop_filename(record: dict[str, Any], class_id: str, source_path: Path) -> str:
+    digest_source = json.dumps(
+        {
+            "event_id": record.get("eventId"),
+            "class_id": class_id,
+            "source": str(source_path),
+            "specificLabel": record.get("specificLabel"),
+            "categoryLabel": record.get("categoryLabel"),
+        },
+        sort_keys=True,
+    )
+    digest = hashlib.sha1(digest_source.encode("utf-8")).hexdigest()[:12]
+    stem = str(record.get("eventId") or source_path.stem or "archive_crop")
+    safe_stem = re.sub(r"[^A-Za-z0-9_-]+", "_", stem)
+    return f"{safe_stem}_{digest}.jpg"
 
 
 def build_mapped_records(
@@ -271,14 +404,205 @@ def export_classifier_dataset(
     return summary
 
 
+def export_archive_classifier_dataset(
+    payload: dict[str, Any],
+    source_label: str,
+    output_dir: Path,
+    val_ratio: float,
+    pad_ratio: float,
+    min_crop_size: int,
+    image_quality: int,
+    summary_only: bool,
+    cache_dir: Path,
+    timeout_seconds: float,
+    label_source: str,
+) -> dict[str, Any]:
+    detections = payload.get("detections") or []
+    if not isinstance(detections, list):
+        raise SystemExit("Archive export JSON must contain a top-level detections list.")
+
+    class_label_map: dict[str, str] = {}
+    class_id_map: dict[str, str] = {}
+    candidate_records: list[dict[str, Any]] = []
+    skipped = Counter()
+    review_state_counts = Counter()
+
+    for record in detections:
+        if not isinstance(record, dict):
+            skipped["non_object_detection_records"] += 1
+            continue
+        review_state = str(record.get("reviewState") or "unreviewed")
+        review_state_counts[review_state] += 1
+        if review_state != "reviewed":
+            skipped[f"review_state_{review_state}"] += 1
+            continue
+
+        label = archive_label_for_export(record, label_source)
+        if not label:
+            skipped["missing_archive_label"] += 1
+            continue
+
+        sign_crop_source = record.get("signCropUrl")
+        frame_source = archive_frame_source(record)
+        bbox = archive_detection_bbox(record)
+
+        if sign_crop_source:
+            source = str(sign_crop_source)
+            uses_sign_crop = True
+        elif frame_source and bbox is not None:
+            source = frame_source
+            uses_sign_crop = False
+        else:
+            skipped["missing_archive_image_or_bbox"] += 1
+            continue
+
+        class_id = archive_class_id(label, class_label_map, class_id_map)
+        split_seed = str(record.get("eventId") or source)
+        candidate_records.append(
+            {
+                "record": record,
+                "label": label,
+                "class_id": class_id,
+                "source": source,
+                "uses_sign_crop": uses_sign_crop,
+                "bbox_xyxy": bbox,
+                "split": split_name_for_path(split_seed, val_ratio),
+            }
+        )
+
+    active_class_ids = sorted(class_id_map)
+    summary: dict[str, Any] = {
+        "source": "archive_export",
+        "archive_export_source": source_label,
+        "output_dir": str(output_dir),
+        "summary_only": summary_only,
+        "val_ratio": val_ratio,
+        "pad_ratio": pad_ratio,
+        "min_crop_size": min_crop_size,
+        "archive_label_source": label_source,
+        "review_state_counts": dict(review_state_counts),
+        "candidate_record_count": len(candidate_records),
+        "class_ids": active_class_ids,
+        "class_label_map": dict(sorted(class_id_map.items())),
+        "skipped_records": dict(skipped),
+    }
+
+    if summary_only:
+        return summary
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for split in ("train", "val"):
+        for class_id in active_class_ids:
+            (output_dir / split / class_id).mkdir(parents=True, exist_ok=True)
+
+    crop_manifest_entries: list[str] = []
+    exported_class_counts = Counter()
+    exported_split_counts = Counter()
+    export_skipped = Counter(summary["skipped_records"])
+
+    for item in candidate_records:
+        source = str(item["source"])
+        try:
+            image_path = cache_archive_image(source, cache_dir=cache_dir, timeout_seconds=timeout_seconds)
+        except Exception:
+            export_skipped["failed_archive_image_download"] += 1
+            continue
+
+        image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+        if image is None:
+            export_skipped["unreadable_image"] += 1
+            continue
+
+        if item["uses_sign_crop"]:
+            crop = image
+            crop_xyxy = None
+            crop_height, crop_width = crop.shape[:2]
+            if crop_width < min_crop_size or crop_height < min_crop_size:
+                export_skipped["too_small_crop"] += 1
+                continue
+        else:
+            height, width = image.shape[:2]
+            bounds = clamp_crop_bounds(item["bbox_xyxy"], width, height, pad_ratio)
+            if bounds is None:
+                export_skipped["invalid_bbox"] += 1
+                continue
+            left, top, right, bottom = bounds
+            if (right - left) < min_crop_size or (bottom - top) < min_crop_size:
+                export_skipped["too_small_crop"] += 1
+                continue
+            crop = image[top:bottom, left:right]
+            crop_xyxy = [left, top, right, bottom]
+
+        if crop.size == 0:
+            export_skipped["empty_crop"] += 1
+            continue
+
+        record = dict(item["record"])
+        class_id = str(item["class_id"])
+        split = str(item["split"])
+        crop_path = output_dir / split / class_id / archive_crop_filename(record, class_id, image_path)
+        success = cv2.imwrite(str(crop_path), crop, [int(cv2.IMWRITE_JPEG_QUALITY), image_quality])
+        if not success:
+            export_skipped["failed_crop_write"] += 1
+            continue
+
+        exported_class_counts[class_id] += 1
+        exported_split_counts[split] += 1
+        crop_manifest_entries.append(
+            json.dumps(
+                {
+                    "crop_path": str(crop_path.relative_to(output_dir)),
+                    "split": split,
+                    "classifier_label": class_id,
+                    "archive_label": item["label"],
+                    "event_id": record.get("eventId"),
+                    "trip_id": record.get("tripId"),
+                    "review_state": record.get("reviewState"),
+                    "used_sign_crop_asset": item["uses_sign_crop"],
+                    "source_image": source,
+                    "bbox_xyxy": item["bbox_xyxy"],
+                    "crop_xyxy": crop_xyxy,
+                }
+            )
+        )
+
+    crop_manifest_path = output_dir / "crop_manifest.jsonl"
+    crop_manifest_path.write_text("\n".join(crop_manifest_entries) + ("\n" if crop_manifest_entries else ""), encoding="utf-8")
+    dataset_yaml = {
+        "path": str(output_dir.resolve()),
+        "train": "train",
+        "val": "val",
+        "names": {index: class_id for index, class_id in enumerate(active_class_ids)},
+    }
+    (output_dir / "dataset.yaml").write_text(yaml.safe_dump(dataset_yaml, sort_keys=False), encoding="utf-8")
+
+    summary["exported_class_counts"] = dict(sorted(exported_class_counts.items()))
+    summary["exported_split_counts"] = dict(sorted(exported_split_counts.items()))
+    summary["skipped_records"] = dict(export_skipped)
+    (output_dir / "archive_export_snapshot.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (output_dir / "export_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary
+
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Export cropped sign images for classifier training.")
+    parser = argparse.ArgumentParser(description="Export cropped sign images for classifier training from either the unified manifest or an archive training export.")
     repo_root = Path(__file__).resolve().parents[1]
     parser.add_argument(
         "--manifest",
         type=Path,
         default=repo_root / "data/training/prepared/unified_sign_manifest.jsonl",
         help="Path to the normalized manifest JSONL.",
+    )
+    parser.add_argument(
+        "--archive-export",
+        type=Path,
+        default=None,
+        help="Path to an archive training export JSON created from the site.",
+    )
+    parser.add_argument(
+        "--archive-export-url",
+        default=None,
+        help="HTTP URL for an archive training export JSON created from the site.",
     )
     parser.add_argument(
         "--taxonomy",
@@ -289,7 +613,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=repo_root / DEFAULT_OUTPUT_DIR,
+        default=None,
         help="Directory to write classifier crops into.",
     )
     parser.add_argument(
@@ -321,23 +645,73 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print mapped class counts without writing crops.",
     )
+    parser.add_argument(
+        "--download-timeout-seconds",
+        type=float,
+        default=30.0,
+        help="Timeout used when downloading archive export JSON or archive images.",
+    )
+    parser.add_argument(
+        "--archive-cache-dir",
+        type=Path,
+        default=None,
+        help="Optional cache directory for downloaded archive images. Defaults inside the output directory.",
+    )
+    parser.add_argument(
+        "--archive-label-source",
+        choices=("specific", "category", "specific_or_category"),
+        default="specific_or_category",
+        help="Which reviewed archive label field should become the classifier class name.",
+    )
+    parser.add_argument(
+        "--archive-auth-token",
+        default=os.environ.get("SIGNOMAT_ARCHIVE_TOKEN"),
+        help="Optional bearer token used when downloading a protected archive export JSON endpoint.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
-    summary = export_classifier_dataset(
-        manifest_path=args.manifest,
-        taxonomy_path=args.taxonomy,
-        output_dir=args.output_dir,
-        repo_root=repo_root,
-        val_ratio=args.val_ratio,
-        pad_ratio=args.pad_ratio,
-        min_crop_size=args.min_crop_size,
-        image_quality=args.image_quality,
-        summary_only=args.summary_only,
-    )
+    archive_mode = args.archive_export is not None or args.archive_export_url is not None
+    output_dir = args.output_dir
+    if output_dir is None:
+        output_dir = repo_root / (DEFAULT_ARCHIVE_OUTPUT_DIR if archive_mode else DEFAULT_OUTPUT_DIR)
+
+    if archive_mode:
+        payload, source_label = load_archive_export(
+            archive_export=args.archive_export,
+            archive_export_url=args.archive_export_url,
+            timeout_seconds=args.download_timeout_seconds,
+            archive_auth_token=args.archive_auth_token,
+        )
+        cache_dir = args.archive_cache_dir or (output_dir / "_archive_cache")
+        summary = export_archive_classifier_dataset(
+            payload=payload,
+            source_label=source_label,
+            output_dir=output_dir,
+            val_ratio=args.val_ratio,
+            pad_ratio=args.pad_ratio,
+            min_crop_size=args.min_crop_size,
+            image_quality=args.image_quality,
+            summary_only=args.summary_only,
+            cache_dir=cache_dir,
+            timeout_seconds=args.download_timeout_seconds,
+            label_source=args.archive_label_source,
+        )
+    else:
+        summary = export_classifier_dataset(
+            manifest_path=args.manifest,
+            taxonomy_path=args.taxonomy,
+            output_dir=output_dir,
+            repo_root=repo_root,
+            val_ratio=args.val_ratio,
+            pad_ratio=args.pad_ratio,
+            min_crop_size=args.min_crop_size,
+            image_quality=args.image_quality,
+            summary_only=args.summary_only,
+        )
     print(json.dumps(summary, indent=2))
     return 0
 

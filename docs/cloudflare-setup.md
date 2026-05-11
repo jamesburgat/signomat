@@ -9,8 +9,10 @@ that deploys the Worker from [`archive/worker_api`](/home/jamesburgat/signomat/a
 That workflow assumes:
 
 - the Worker source lives in [`archive/worker_api`](/home/jamesburgat/signomat/archive/worker_api)
+- the archive frontend static assets live in [`archive/frontend`](/home/jamesburgat/signomat/archive/frontend) and are deployed by the same Worker
 - D1 migrations are applied before deploy
 - `SIGNOMAT_INGEST_TOKEN` is pushed as a Cloudflare Worker secret during deploy
+- `SIGNOMAT_ADMIN_TOKEN` is pushed as a Cloudflare Worker secret during deploy
 
 ## Fill These Values
 
@@ -20,6 +22,7 @@ In [`wrangler.jsonc`](/home/jamesburgat/signomat/archive/worker_api/wrangler.jso
 - verify `database_id`
 - verify `bucket_name` values for `MEDIA_BUCKET` and `THUMBS_BUCKET`
 - verify `PUBLIC_BASE_URL`
+- verify the custom domain route under `routes`
 
 The file in this repo already contains concrete values. If your Cloudflare
 account, worker name, or subdomain changed, update them here before deploying.
@@ -29,6 +32,7 @@ In GitHub repository secrets:
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `SIGNOMAT_INGEST_TOKEN`
+- `SIGNOMAT_ADMIN_TOKEN`
 
 The GitHub workflow uses the Cloudflare API token and account ID to deploy, and
 it publishes `SIGNOMAT_INGEST_TOKEN` into the Worker as a secret.
@@ -37,6 +41,7 @@ If you deploy manually instead of GitHub Actions, set the Worker secret in
 Cloudflare directly:
 
 - `SIGNOMAT_INGEST_TOKEN`
+- `SIGNOMAT_ADMIN_TOKEN`
 
 ## Bindings
 
@@ -74,8 +79,10 @@ If the GitHub runner or Cloudflare deploy is failing, check these in order:
 
 ## Current Endpoints
 
+- `GET /`
 - `GET /health`
 - `GET /config-check`
+- `GET /public/stats`
 - `POST /ingest/batch`
 - `GET /public/detections`
 - `GET /public/detections/:eventId`
@@ -90,9 +97,11 @@ Authorization: Bearer <SIGNOMAT_INGEST_TOKEN>
 
 The Worker rejects mismatched tokens with `401`.
 
-## Next Cloudflare Steps
+## Custom Domain
 
-- add media upload endpoints or direct upload flow for R2-backed assets
-- add trip and breadcrumb public endpoints
-- add admin review auth and mutation endpoints
-- connect Pages later when `archive/frontend` is ready
+The Worker is configured to attach directly to `signs.jamesburgat.com` via a
+Cloudflare Custom Domain route in `wrangler.jsonc`.
+
+If the hostname already has an existing DNS record, remove or replace that
+record before the first deploy so Cloudflare can create the Worker-backed custom
+domain record.
