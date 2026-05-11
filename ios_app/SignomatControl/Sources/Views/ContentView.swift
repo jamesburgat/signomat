@@ -95,25 +95,31 @@ struct ControlDashboardView: View {
                 .keyboardType(.URL)
                 .textFieldStyle(.roundedBorder)
 
-            if let discoveredPreviewBaseURL {
+            if blePreviewHostnameBaseURL != nil || bleCurrentPiIPPreviewBaseURL != nil {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Discovered over BLE: \(discoveredPreviewBaseURL)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let blePreviewHostnameBaseURL {
+                        Text("BLE preview hostname: \(blePreviewHostnameBaseURL)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let bleCurrentPiIPPreviewBaseURL {
+                        Text("Current Pi IP over BLE: \(bleCurrentPiIPPreviewBaseURL)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     HStack(spacing: 10) {
-                        Button("Use Pi Address") {
-                            previewBaseURL = discoveredPreviewBaseURL
-                            lastDetectedPreviewBaseURL = discoveredPreviewBaseURL
-                            refreshPreview()
+                        if let blePreviewHostnameBaseURL {
+                            Button("Use Pi Address") {
+                                applyDetectedPreviewBaseURL(blePreviewHostnameBaseURL)
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
 
-                        if let fallbackPreviewBaseURL, fallbackPreviewBaseURL != discoveredPreviewBaseURL {
+                        if let bleCurrentPiIPPreviewBaseURL {
                             Button("Use Current Pi IP") {
-                                previewBaseURL = fallbackPreviewBaseURL
-                                lastDetectedPreviewBaseURL = fallbackPreviewBaseURL
-                                refreshPreview()
+                                applyDetectedPreviewBaseURL(bleCurrentPiIPPreviewBaseURL)
                             }
                             .buttonStyle(.bordered)
                         }
@@ -768,13 +774,16 @@ struct ControlDashboardView: View {
         sanitizedPreviewBaseURL(from: previewBaseURL)
     }
 
-    private var discoveredPreviewBaseURL: String? {
+    private var blePreviewHostnameBaseURL: String? {
         canonicalPreviewBaseURLString(from: viewModel.manager.status.previewBaseURL)
-            ?? canonicalPreviewBaseURLString(from: viewModel.manager.status.previewFallbackBaseURL)
     }
 
-    private var fallbackPreviewBaseURL: String? {
+    private var bleCurrentPiIPPreviewBaseURL: String? {
         canonicalPreviewBaseURLString(from: viewModel.manager.status.previewFallbackBaseURL)
+    }
+
+    private var preferredDetectedPreviewBaseURL: String? {
+        bleCurrentPiIPPreviewBaseURL ?? blePreviewHostnameBaseURL
     }
 
     private func sanitizedPreviewBaseURL(from rawValue: String) -> URL? {
@@ -830,8 +839,14 @@ struct ControlDashboardView: View {
         previewRevision = UUID().uuidString
     }
 
+    private func applyDetectedPreviewBaseURL(_ detectedPreviewBaseURL: String) {
+        previewBaseURL = detectedPreviewBaseURL
+        lastDetectedPreviewBaseURL = detectedPreviewBaseURL
+        refreshPreview()
+    }
+
     private func applySuggestedPreviewURLIfNeeded() {
-        guard let suggestedPreviewBaseURL = discoveredPreviewBaseURL else { return }
+        guard let suggestedPreviewBaseURL = preferredDetectedPreviewBaseURL else { return }
         let currentPreviewBaseURL = canonicalPreviewBaseURLString(from: previewBaseURL)
         let previousDetectedPreviewBaseURL = canonicalPreviewBaseURLString(from: lastDetectedPreviewBaseURL)
         let defaultPreviewBaseURL = canonicalPreviewBaseURLString(from: "http://signomat.local:8080")
@@ -839,8 +854,7 @@ struct ControlDashboardView: View {
         if currentPreviewBaseURL == nil ||
             currentPreviewBaseURL == defaultPreviewBaseURL ||
             currentPreviewBaseURL == previousDetectedPreviewBaseURL {
-            previewBaseURL = suggestedPreviewBaseURL
-            lastDetectedPreviewBaseURL = suggestedPreviewBaseURL
+            applyDetectedPreviewBaseURL(suggestedPreviewBaseURL)
         }
     }
 }
