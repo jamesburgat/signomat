@@ -97,27 +97,27 @@ struct ControlDashboardView: View {
 
             if blePreviewHostnameBaseURL != nil || bleCurrentPiIPPreviewBaseURL != nil {
                 VStack(alignment: .leading, spacing: 8) {
-                    if let blePreviewHostnameBaseURL {
+                    if let blePreviewHostnameBaseURL = blePreviewHostnameBaseURL {
                         Text("BLE preview hostname: \(blePreviewHostnameBaseURL)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
 
-                    if let bleCurrentPiIPPreviewBaseURL {
+                    if let bleCurrentPiIPPreviewBaseURL = bleCurrentPiIPPreviewBaseURL {
                         Text("Current Pi IP over BLE: \(bleCurrentPiIPPreviewBaseURL)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
 
                     HStack(spacing: 10) {
-                        if let blePreviewHostnameBaseURL {
+                        if let blePreviewHostnameBaseURL = blePreviewHostnameBaseURL {
                             Button("Use Pi Address") {
                                 applyDetectedPreviewBaseURL(blePreviewHostnameBaseURL)
                             }
                             .buttonStyle(.bordered)
                         }
 
-                        if let bleCurrentPiIPPreviewBaseURL {
+                        if let bleCurrentPiIPPreviewBaseURL = bleCurrentPiIPPreviewBaseURL {
                             Button("Use Current Pi IP") {
                                 applyDetectedPreviewBaseURL(bleCurrentPiIPPreviewBaseURL)
                             }
@@ -134,13 +134,13 @@ struct ControlDashboardView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(previewSnapshotURL == nil)
 
-                if let previewPageURL {
+                if let previewPageURL = previewPageURL {
                     Link("Open Live Preview", destination: previewPageURL)
                         .buttonStyle(.bordered)
                 }
             }
 
-            if let previewSnapshotURL {
+            if let previewSnapshotURL = previewSnapshotURL {
                 AsyncImage(url: previewSnapshotURL, transaction: Transaction(animation: .easeInOut(duration: 0.2))) { phase in
                     switch phase {
                     case .empty:
@@ -813,7 +813,7 @@ struct ControlDashboardView: View {
     }
 
     private func canonicalPreviewBaseURLString(from rawValue: String?) -> String? {
-        guard let rawValue, let url = sanitizedPreviewBaseURL(from: rawValue) else { return nil }
+        guard let rawValue = rawValue, let url = sanitizedPreviewBaseURL(from: rawValue) else { return nil }
         var text = url.absoluteString
         if text.hasSuffix("/") {
             text.removeLast()

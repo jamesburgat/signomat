@@ -355,7 +355,7 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
 
     var clientSideCropRequest: DetectionCropRequest? {
         guard
-            let sourceURL = url(from: cleanFrameUrl),
+            let sourceURL = urls(from: [cleanFrameUrl]).first,
             let bboxLeft,
             let bboxTop,
             let bboxRight,
