@@ -144,7 +144,7 @@ class SyncService:
                 continue
             oversize_message = self._oversize_media_message(local_path, absolute_path)
             if oversize_message:
-                self.database.mark_upload_items_state([queue_id], "failed", last_error=oversize_message)
+                self.database.mark_upload_items_state([queue_id], "skipped", last_error=oversize_message)
                 if item["related_table"] in {"detections", "video_segments"}:
                     self.database.set_related_upload_state(item["related_table"], item["related_id"], "local_only")
                 skipped += 1

@@ -347,12 +347,12 @@ def test_force_sync_marks_oversized_video_media_failed_and_local_only(tmp_path, 
 
     assert result["ok"] is True
     status = database.upload_status()
-    assert status.get("failed") == 1
+    assert status.get("skipped") == 1
     assert status.get("pending", 0) == 0
 
     queue_row = database.query_one("SELECT state, last_error FROM upload_queue LIMIT 1")
     assert queue_row is not None
-    assert queue_row["state"] == "failed"
+    assert queue_row["state"] == "skipped"
     assert "exceeds upload limit" in (queue_row["last_error"] or "")
 
     segment = database.video_segment_by_id("vid_oversize")
@@ -360,7 +360,7 @@ def test_force_sync_marks_oversized_video_media_failed_and_local_only(tmp_path, 
     assert segment["upload_state"] == "local_only"
 
     reported = service.status()
-    assert reported["last_result"] == "attention"
+    assert reported["last_result"] == "synced"
 
     database.close()
 

@@ -475,13 +475,15 @@ class SignomatRuntime:
         total = int(sync.get("total", 0) or 0)
         pending = int(sync.get("pending", 0) or 0)
         synced = int(sync.get("synced", 0) or 0)
-        progress_pct = 100 if total == 0 else int((synced * 100) / max(total, 1))
+        skipped = int(sync.get("skipped", 0) or 0)
+        completed = synced + skipped
+        progress_pct = 100 if total == 0 else int((completed * 100) / max(total, 1))
         if pending > 0:
             progress_pct = min(progress_pct, 99)
         return {
             "queue": total,
             "pending": pending,
-            "synced": synced,
+            "synced": completed,
             "total": total,
             "progress_pct": progress_pct,
             "last_result": sync.get("last_result"),

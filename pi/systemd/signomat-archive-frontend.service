@@ -1,0 +1,16 @@
+[Unit]
+Description=Signomat Archive Frontend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jamesburgat
+Group=jamesburgat
+WorkingDirectory=/home/jamesburgat/signomat/archive/frontend
+ExecStart=/usr/bin/python3 -m http.server 4173 --bind 0.0.0.0
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -695,7 +695,7 @@ function defaultApiBase() {
   if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
     return "http://127.0.0.1:8787";
   }
-  return window.location.origin;
+  return "https://signomat-api.burgat-james.workers.dev";
 }
 
 function formatDate(value) {
