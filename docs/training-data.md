@@ -46,24 +46,26 @@ more specific sign families after capture.
 
 ## Runtime Capture Policy
 
-The Pi runtime now keeps normal drives focused on fast detector-only capture:
+The Pi runtime now uses one recall-first live profile for normal drives:
 
 - `camera.width: 960`
 - `camera.height: 540`
-- `interval_seconds: 0.25`
-- `detector_imgsz: 512`
+- `interval_seconds: 0.2`
+- `detector_imgsz: 640`
 - `classifier_backend: none`
 - `save_unknown_signs: true`
 - `save_crops: false`
-- `min_box_area: 900`
-- `min_detector_confidence: 0.6`
+- `max_candidates: 12`
+- `min_box_area: 625`
+- `min_detector_confidence: 0.45`
 
 Detector hits that clear the detector threshold are still saved for collection;
 full clean and annotated frames remain available for review, but sign crop files
 and crop thumbnails are not written during normal drives. YOLO detections smaller
 than `min_box_area` are filtered before persistence, which removes tiny far-field
-or speck-like boxes; lower thresholds should be used only for intentional review
-or training-data collection runs. The broader detector/classifier work still supports:
+or speck-like boxes. This profile intentionally trades some precision for recall,
+so a modest rise in false positives is expected and acceptable. The broader
+detector/classifier work still supports:
 
 - mock detector/classifier support for sign-like color proposals such as `green`,
   `white`, and `orange`
@@ -73,10 +75,11 @@ or training-data collection runs. The broader detector/classifier work still sup
   - `service_sign`
   - `work_zone_sign`
 
-The live Pi path is learned-detector first and detector-only by default while
-driving; the crop classifier is now more useful as a review, replay, and
-training tool than as an always-on live stage. The mock detector/classifier path
-is retained only for mock/dev runs and explicit simulator experiments.
+The live Pi path is learned-detector first, detector-only while driving, and
+tuned around recall rather than precision. The crop classifier is now more
+useful as a review, replay, and training tool than as an always-on live stage.
+The mock detector/classifier path is retained only for mock/dev runs and
+explicit simulator experiments.
 
 ## Workspace Setup
 

@@ -24,8 +24,11 @@ def test_default_config_uses_learned_models_and_mock_config_keeps_mock_backends(
     assert default_config.inference.classifier_model_path.endswith("_ncnn_model")
     assert default_config.camera.width == 960
     assert default_config.camera.height == 540
-    assert default_config.inference.interval_seconds == 0.25
-    assert default_config.inference.detector_imgsz == 512
+    assert default_config.inference.interval_seconds == 0.2
+    assert default_config.inference.detector_imgsz == 640
+    assert default_config.inference.max_candidates == 12
+    assert default_config.inference.min_box_area == 625
+    assert default_config.inference.min_detector_confidence == 0.45
     assert default_config.inference.save_crops is False
     assert default_config.inference.save_unknown_signs is True
     assert default_config.inference.save_clean_frame is True

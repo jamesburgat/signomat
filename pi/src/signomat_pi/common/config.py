@@ -64,7 +64,7 @@ class PreprocessingSection(BaseModel):
 
 class InferenceSection(BaseModel):
     enabled: bool = True
-    interval_seconds: float = 0.25
+    interval_seconds: float = 0.2
     save_crops: bool = False
     save_unknown_signs: bool = True
     save_clean_frame: bool = True
@@ -75,16 +75,16 @@ class InferenceSection(BaseModel):
     thumbnail_max_edge: int = 480
     detector_backend: str = "yolo"
     detector_model_path: str = "models/sign_detector_yolo11n_any_sign_ncnn_model"
-    detector_imgsz: int = 512
+    detector_imgsz: int = 640
     classifier_backend: str = "none"
     classifier_model_path: str = "models/sign_classifier_yolo11n_raw_min100_ncnn_model"
     classifier_imgsz: int = 224
     model_verbose: bool = False
-    max_candidates: int = 4
-    min_box_area: int = 900
+    max_candidates: int = 12
+    min_box_area: int = 625
     max_box_area_ratio: float = 0.12
     min_box_fill_ratio: float = 0.2
-    min_detector_confidence: float = 0.6
+    min_detector_confidence: float = 0.45
     min_classifier_confidence: float = 0.75
     border_ignore_margin_px: int = 6
     dedupe_window_seconds: float = 6.0

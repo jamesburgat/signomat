@@ -37,7 +37,7 @@ Then open `http://127.0.0.1:8080/docs` for the local API when running in mock mo
 
 ## Training Direction
 
-- The default Pi runtime uses the learned one-class `sign` detector for live driving and skips crop classification on the hot path for better throughput.
+- The default Pi runtime uses one recall-first live profile: the learned one-class `sign` detector runs while driving and crop classification stays off the hot path.
 - The default Pi runtime expects the learned model files to load; mock/dev configs can still opt into the mock detector/classifier explicitly.
 - The learned classifier remains available for replay, archive review, and training workflows instead of always-on driving inference.
 - The learned detector is trained on `Mapillary + GLARE`; the learned classifier is trained on data-driven raw-label crops.
