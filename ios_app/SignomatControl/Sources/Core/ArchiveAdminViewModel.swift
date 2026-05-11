@@ -11,6 +11,8 @@ final class ArchiveAdminViewModel: ObservableObject {
     @Published var statusMessage: String?
     @Published var errorMessage: String?
 
+    private static let reviewQueueLimit = 50
+
     func reload(apiBaseURLString: String) async {
         guard let baseURL = normalizedBaseURL(from: apiBaseURLString) else {
             errorMessage = "Enter a valid archive API URL."
@@ -22,7 +24,7 @@ final class ArchiveAdminViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            async let queue: ArchiveReviewQueueResponse = fetch("/admin/review/queue?limit=50", baseURL: baseURL)
+            async let queue: ArchiveReviewQueueResponse = fetch(reviewQueuePath(), baseURL: baseURL)
             async let summary: ArchiveTrainingSummaryResponse = fetch("/admin/training/summary", baseURL: baseURL)
             async let jobs: ArchiveTrainingJobsResponse = fetch("/admin/training/jobs", baseURL: baseURL)
             async let tripPayload: ArchiveTripsResponse = fetch("/public/trips?limit=100", baseURL: baseURL)
@@ -44,37 +46,52 @@ final class ArchiveAdminViewModel: ObservableObject {
         detection: ArchiveDetection,
         reviewState: ArchiveReviewState
     ) async {
+        guard let baseURL = normalizedBaseURL(from: apiBaseURLString) else {
+            errorMessage = "Enter a valid archive API URL."
+            return
+        }
+
         let request = ArchiveReviewUpdateRequest(
             reviewState: reviewState,
             notes: detection.notes,
             categoryLabel: detection.categoryLabel,
             specificLabel: detection.specificLabel
         )
-        await updateReview(apiBaseURLString: apiBaseURLString, eventID: detection.eventID, request: request)
+        let originalIndex = reviewQueue.firstIndex { $0.eventID == detection.eventID }
+        removeDetectionFromQueue(eventID: detection.eventID)
+
+        do {
+            let updatedDetection = try await saveReview(baseURL: baseURL, eventID: detection.eventID, request: request)
+            applyReviewUpdate(updatedDetection)
+            errorMessage = nil
+            statusMessage = "Saved review for \(detection.eventID)."
+            try await refreshSummary(baseURL: baseURL)
+        } catch {
+            restoreDetectionToQueue(detection, at: originalIndex)
+            errorMessage = error.localizedDescription
+        }
     }
 
     func updateReview(
         apiBaseURLString: String,
         eventID: String,
         request: ArchiveReviewUpdateRequest
-    ) async {
+    ) async -> Bool {
         guard let baseURL = normalizedBaseURL(from: apiBaseURLString) else {
             errorMessage = "Enter a valid archive API URL."
-            return
+            return false
         }
 
         do {
-            let _: ArchiveDetectionDetailResponse = try await send(
-                path: "/admin/detections/\(eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? eventID)/review",
-                method: "PATCH",
-                payload: request,
-                baseURL: baseURL
-            )
+            let updatedDetection = try await saveReview(baseURL: baseURL, eventID: eventID, request: request)
+            applyReviewUpdate(updatedDetection)
             statusMessage = "Saved review for \(eventID)."
             errorMessage = nil
-            await reload(apiBaseURLString: apiBaseURLString)
+            try await refreshSummary(baseURL: baseURL)
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -109,6 +126,10 @@ final class ArchiveAdminViewModel: ObservableObject {
         return URL(string: candidate)
     }
 
+    private func reviewQueuePath() -> String {
+        "/admin/review/queue?limit=\(Self.reviewQueueLimit)&reviewState=\(ArchiveReviewState.unreviewed.rawValue)"
+    }
+
     private func fetch<Response: Decodable>(_ path: String, baseURL: URL) async throws -> Response {
         var request = URLRequest(url: resolvedURL(path: path, baseURL: baseURL))
         request.httpMethod = "GET"
@@ -130,6 +151,48 @@ final class ArchiveAdminViewModel: ObservableObject {
         request.httpBody = try JSONEncoder().encode(payload)
         let (data, response) = try await URLSession.shared.data(for: request)
         return try decode(Response.self, data: data, response: response)
+    }
+
+    private func saveReview(
+        baseURL: URL,
+        eventID: String,
+        request: ArchiveReviewUpdateRequest
+    ) async throws -> ArchiveDetection {
+        let response: ArchiveDetectionDetailResponse = try await send(
+            path: "/admin/detections/\(eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? eventID)/review",
+            method: "PATCH",
+            payload: request,
+            baseURL: baseURL
+        )
+        return response.detection
+    }
+
+    private func refreshSummary(baseURL: URL) async throws {
+        let summary: ArchiveTrainingSummaryResponse = try await fetch("/admin/training/summary", baseURL: baseURL)
+        reviewCounts = summary.reviewCounts
+        modelMetrics = summary.modelMetrics
+    }
+
+    private func applyReviewUpdate(_ detection: ArchiveDetection) {
+        if detection.reviewState == .unreviewed {
+            if let index = reviewQueue.firstIndex(where: { $0.eventID == detection.eventID }) {
+                reviewQueue[index] = detection
+            } else {
+                reviewQueue.insert(detection, at: 0)
+            }
+        } else {
+            removeDetectionFromQueue(eventID: detection.eventID)
+        }
+    }
+
+    private func removeDetectionFromQueue(eventID: String) {
+        reviewQueue.removeAll { $0.eventID == eventID }
+    }
+
+    private func restoreDetectionToQueue(_ detection: ArchiveDetection, at index: Int?) {
+        guard reviewQueue.contains(where: { $0.eventID == detection.eventID }) == false else { return }
+        let insertionIndex = min(index ?? reviewQueue.count, reviewQueue.count)
+        reviewQueue.insert(detection, at: insertionIndex)
     }
 
     private func resolvedURL(path: String, baseURL: URL) -> URL {
@@ -282,8 +345,20 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
     var id: String { eventId }
     var eventID: String { eventId }
 
-    var bestThumbnailURL: URL? {
-        let raw = cleanThumbnailUrl ?? annotatedThumbnailUrl ?? signCropThumbnailUrl ?? cleanFrameUrl ?? annotatedFrameUrl ?? signCropUrl
+    var primaryReviewImageURL: URL? {
+        url(from: signCropThumbnailUrl ?? signCropUrl ?? cleanThumbnailUrl ?? cleanFrameUrl ?? annotatedThumbnailUrl ?? annotatedFrameUrl)
+    }
+
+    var secondaryContextImageURL: URL? {
+        guard cropImageURL != nil else { return nil }
+        return url(from: cleanThumbnailUrl ?? cleanFrameUrl)
+    }
+
+    private var cropImageURL: URL? {
+        url(from: signCropThumbnailUrl ?? signCropUrl)
+    }
+
+    private func url(from raw: String?) -> URL? {
         guard let raw, !raw.isEmpty else { return nil }
         return URL(string: raw)
     }

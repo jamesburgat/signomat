@@ -329,8 +329,6 @@ private struct DetectionReviewCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 previewImage
-                    .frame(width: 132, height: 100)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(detection.specificLabel ?? detection.categoryLabel)
@@ -376,23 +374,46 @@ private struct DetectionReviewCard: View {
 
     @ViewBuilder
     private var previewImage: some View {
-        if let url = detection.bestThumbnailURL {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .empty:
-                    imagePlaceholder
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                case .failure:
-                    imagePlaceholder
-                @unknown default:
-                    imagePlaceholder
+        if let url = detection.primaryReviewImageURL {
+            ZStack(alignment: .bottomTrailing) {
+                reviewImage(url: url)
+                    .frame(width: 132, height: 100)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+
+                if let contextURL = detection.secondaryContextImageURL, contextURL != url {
+                    reviewImage(url: contextURL)
+                        .frame(width: 52, height: 40)
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.85), lineWidth: 1)
+                        )
+                        .padding(6)
                 }
             }
+            .frame(width: 132, height: 100)
         } else {
             imagePlaceholder
+                .frame(width: 132, height: 100)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    private func reviewImage(url: URL) -> some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .empty:
+                imagePlaceholder
+            case .success(let image):
+                image
+                    .resizable()
+                    .scaledToFill()
+            case .failure:
+                imagePlaceholder
+            @unknown default:
+                imagePlaceholder
+            }
         }
     }
 
@@ -414,12 +435,12 @@ private struct DetectionReviewEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     let detection: ArchiveDetection
-    let saveAction: (ArchiveDetection) async -> Void
+    let saveAction: (ArchiveDetection) async -> Bool
 
     @State private var draft: ArchiveDetection
     @State private var isSaving = false
 
-    init(detection: ArchiveDetection, saveAction: @escaping (ArchiveDetection) async -> Void) {
+    init(detection: ArchiveDetection, saveAction: @escaping (ArchiveDetection) async -> Bool) {
         self.detection = detection
         self.saveAction = saveAction
         var initialDraft = detection
@@ -474,9 +495,11 @@ private struct DetectionReviewEditor: View {
                     Button(isSaving ? "Saving..." : "Save") {
                         Task {
                             isSaving = true
-                            await saveAction(draft)
+                            let didSave = await saveAction(draft)
                             isSaving = false
-                            dismiss()
+                            if didSave {
+                                dismiss()
+                            }
                         }
                     }
                     .disabled(isSaving)
