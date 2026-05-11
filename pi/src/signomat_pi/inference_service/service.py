@@ -19,6 +19,7 @@ from signomat_pi.inference_service.pipeline import (
     MockSignClassifier,
     UltralyticsCropClassifier,
     UltralyticsSignDetector,
+    uses_classifier_confidence_gate,
 )
 from signomat_pi.inference_service.taxonomy import TaxonomyMapper
 
@@ -228,7 +229,10 @@ class InferenceService:
                                 if classified.raw_label == "unknown_sign":
                                     if not self.config.inference.save_unknown_signs:
                                         continue
-                                elif classified.confidence < self.config.inference.min_classifier_confidence:
+                                elif (
+                                    uses_classifier_confidence_gate(self.classifier)
+                                    and classified.confidence < self.config.inference.min_classifier_confidence
+                                ):
                                     continue
                                 taxonomy = self.taxonomy.map_label(classified.raw_label)
                                 accept, dedupe_ref = self.deduper.accept_or_suppress(taxonomy.category_id, candidate.bbox, packet.timestamp)

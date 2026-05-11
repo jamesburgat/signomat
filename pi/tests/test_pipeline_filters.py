@@ -12,15 +12,20 @@ from signomat_pi.inference_service.pipeline import (
     MockColorShapeDetector,
     MockSignClassifier,
     UltralyticsSignDetector,
+    uses_classifier_confidence_gate,
 )
 
 
 def test_default_config_uses_learned_models_and_mock_config_keeps_mock_backends():
     default_config = load_config("pi/config/default.yaml")
     assert default_config.inference.detector_backend == "yolo"
-    assert default_config.inference.classifier_backend == "yolo"
+    assert default_config.inference.classifier_backend == "none"
     assert default_config.inference.detector_model_path.endswith("_ncnn_model")
     assert default_config.inference.classifier_model_path.endswith("_ncnn_model")
+    assert default_config.camera.width == 960
+    assert default_config.camera.height == 540
+    assert default_config.inference.interval_seconds == 0.25
+    assert default_config.inference.detector_imgsz == 512
     assert default_config.inference.save_crops is False
     assert default_config.inference.save_unknown_signs is True
     assert default_config.inference.save_clean_frame is True
@@ -36,6 +41,7 @@ def test_default_config_uses_learned_models_and_mock_config_keeps_mock_backends(
 
 def test_learned_backend_init_errors_do_not_fall_back_to_mock_backends(monkeypatch):
     config = load_config("pi/config/default.yaml")
+    config.inference.classifier_backend = "yolo"
     service = service_module.InferenceService.__new__(service_module.InferenceService)
     service.config = config
 
@@ -97,6 +103,11 @@ def test_detector_label_classifier_allows_detector_only_mode():
 
     assert result.raw_label == "sign"
     assert result.confidence == 0.42
+
+
+def test_detector_only_mode_skips_classifier_confidence_gate():
+    assert uses_classifier_confidence_gate(DetectorLabelClassifier()) is False
+    assert uses_classifier_confidence_gate(MockSignClassifier()) is True
 
 
 def test_detector_prefers_centered_sign_shapes_over_noise():

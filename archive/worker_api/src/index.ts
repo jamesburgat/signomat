@@ -483,7 +483,8 @@ async function handlePublicAsset(ctx: RouteContext): Promise<Response> {
 async function handleAdminReviewQueue(ctx: RouteContext): Promise<Response> {
   const limit = clampInt(ctx.url.searchParams.get("limit"), 1, 300, 80);
   const tripId = ctx.url.searchParams.get("tripId");
-  const reviewState = parseReviewStateParam(ctx.url.searchParams.get("reviewState"));
+  const rawReviewState = ctx.url.searchParams.get("reviewState");
+  const reviewState = rawReviewState === null ? "unreviewed" : parseReviewStateParam(rawReviewState);
 
   const filters: string[] = [];
   const bindings: unknown[] = [];
@@ -949,7 +950,7 @@ function suggestedTrainingCommand(
     return `Download the ${modelType} draft export for ${scopeNote}${falsePositiveNote} and convert it into a local training dataset.`;
   }
   if (modelType === "classifier") {
-    return `curl -L "${exportUrl}" -o data/training/archive_exports/${jobId}.json  # classifier archive export from ${scopeNote}, filtered to ${reviewState}${falsePositiveNote}`;
+    return `python scripts/export_sign_classifier_dataset.py --archive-export-url "${exportUrl}" --output-dir data/training/exports/${jobId}  # classifier crop dataset from ${scopeNote}, filtered to ${reviewState}${falsePositiveNote}`;
   }
   return `python scripts/export_yolo_detection_dataset.py --archive-export-url "${exportUrl}" --output-dir data/training/exports/${jobId} --image-mode copy  # detector dataset from ${scopeNote}, filtered to ${reviewState}${falsePositiveNote}`;
 }

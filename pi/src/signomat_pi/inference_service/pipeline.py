@@ -316,6 +316,10 @@ class DetectorLabelClassifier:
         return ClassificationResult(candidate.detector_label, candidate.confidence)
 
 
+def uses_classifier_confidence_gate(classifier: Any) -> bool:
+    return not isinstance(classifier, DetectorLabelClassifier)
+
+
 class UltralyticsCropClassifier:
     def __init__(self, model_path: Path, imgsz: int, verbose: bool = False) -> None:
         self.model = _load_yolo_model(model_path, "classify")

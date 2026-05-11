@@ -15,6 +15,7 @@ from signomat_pi.inference_service.pipeline import (
     FramePreprocessor,
     MockSignClassifier,
     UltralyticsCropClassifier,
+    uses_classifier_confidence_gate,
 )
 from signomat_pi.inference_service.taxonomy import TaxonomyMapper
 
@@ -208,7 +209,11 @@ class ReplayEvaluator:
                 continue
 
             representative_row, classified = best
-            if classified.raw_label != "unknown_sign" and classified.confidence < self.config.inference.min_classifier_confidence:
+            if (
+                classified.raw_label != "unknown_sign"
+                and uses_classifier_confidence_gate(self._classifier())
+                and classified.confidence < self.config.inference.min_classifier_confidence
+            ):
                 classified = ClassificationResult("unknown_sign", classified.confidence)
             taxonomy = self.taxonomy.map_label(classified.raw_label)
             review_state = "machine_classified" if classified.raw_label != "unknown_sign" else "classification_unknown"

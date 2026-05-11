@@ -10,8 +10,8 @@ camera:
   device: null
   index: 0
   fourcc: null
-  width: 1280
-  height: 720
+  width: 960
+  height: 540
   fps: 30
   rotation: 0
   codec: mp4v
@@ -35,7 +35,7 @@ gps:
 
 inference:
   enabled: true
-  interval_seconds: 0.2
+  interval_seconds: 0.25
   save_crops: false
   save_unknown_signs: true
   save_clean_frame: true
@@ -46,8 +46,8 @@ inference:
   thumbnail_max_edge: 480
   detector_backend: yolo
   detector_model_path: models/sign_detector_yolo11n_any_sign_ncnn_model
-  detector_imgsz: 640
-  classifier_backend: yolo
+  detector_imgsz: 512
+  classifier_backend: none
   classifier_model_path: models/sign_classifier_yolo11n_raw_min100_ncnn_model
   classifier_imgsz: 224
   model_verbose: false

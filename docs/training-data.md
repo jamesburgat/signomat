@@ -46,21 +46,24 @@ more specific sign families after capture.
 
 ## Runtime Capture Policy
 
-The Pi runtime now keeps normal drives focused on higher-confidence detections:
+The Pi runtime now keeps normal drives focused on fast detector-only capture:
 
+- `camera.width: 960`
+- `camera.height: 540`
+- `interval_seconds: 0.25`
+- `detector_imgsz: 512`
+- `classifier_backend: none`
 - `save_unknown_signs: true`
 - `save_crops: false`
 - `min_box_area: 900`
 - `min_detector_confidence: 0.6`
-- `min_classifier_confidence: 0.75`
 
-Unknown signs that clear the detector threshold are still saved for collection;
+Detector hits that clear the detector threshold are still saved for collection;
 full clean and annotated frames remain available for review, but sign crop files
 and crop thumbnails are not written during normal drives. YOLO detections smaller
-than `min_box_area` are filtered before classification, which removes tiny
-far-field or speck-like boxes;
-lower thresholds should be used only for intentional review or training-data
-collection runs. The broader detector/classifier work still supports:
+than `min_box_area` are filtered before persistence, which removes tiny far-field
+or speck-like boxes; lower thresholds should be used only for intentional review
+or training-data collection runs. The broader detector/classifier work still supports:
 
 - mock detector/classifier support for sign-like color proposals such as `green`,
   `white`, and `orange`
@@ -70,8 +73,10 @@ collection runs. The broader detector/classifier work still supports:
   - `service_sign`
   - `work_zone_sign`
 
-The live Pi path is learned-model first; the mock detector/classifier path is
-retained only for mock/dev runs and explicit simulator experiments.
+The live Pi path is learned-detector first and detector-only by default while
+driving; the crop classifier is now more useful as a review, replay, and
+training tool than as an always-on live stage. The mock detector/classifier path
+is retained only for mock/dev runs and explicit simulator experiments.
 
 ## Workspace Setup
 
@@ -218,6 +223,13 @@ When ready, the intended training path is:
 ```bash
 . .venv/bin/activate
 yolo classify train \
+  model=yolo11n-cls.pt \
+  data=data/training/exports/classifier_dataset_raw_min100 \
+  imgsz=224 \
+  epochs=50 \
+  batch=64 \
+  device=mps
+```
 
 ### Archive Review To Detector Dataset
 
@@ -239,12 +251,48 @@ That archive mode will:
 - write YOLO labels for confirmed signs
 - write empty label files for `false_positive` review rows so detector training
   can learn negative frames from your own drives
-  model=yolo11n-cls.pt \
-  data=data/training/exports/classifier_dataset_raw_min100 \
-  imgsz=224 \
-  epochs=50 \
-  batch=64 \
-  device=mps
+
+### Archive Review To Classifier Crop Dataset
+
+Once you have reviewed detections and relabeled them with stable sign labels,
+you can export archive crops directly into a classifier dataset with:
+
+```bash
+. .venv/bin/activate
+python scripts/export_sign_classifier_dataset.py \
+  --archive-export-url "https://signomat-api.example.workers.dev/admin/training/jobs/job_x/export" \
+  --output-dir data/training/exports/job_x_classifier
 ```
+
+The archive classifier export will:
+
+- prefer stored sign crop assets when they exist
+- fall back to cropping the reviewed frame from the saved detection box
+- build `train/<class_name>/*.jpg` and `val/<class_name>/*.jpg`
+- write `crop_manifest.jsonl`, `dataset.yaml`, and `export_summary.json`
+- use `specificLabel` first, then `categoryLabel`, unless you override
+  `--archive-label-source`
+
+For archive review jobs, the practical loop is:
+
+- use detector drafts to improve recall and false-positive handling
+- use classifier drafts only after you have cleaned up labels into stable,
+  repeated sign names
+- keep detector and classifier exports in separate output directories so you can
+  compare iterations cleanly
+
+### Archive Improvement Loop
+
+The highest-yield repeatable loop is:
+
+- collect a review-focused drive with lower thresholds only when you are
+  intentionally mining hard examples
+- review detections quickly in the app/site, confirming signs and rejecting
+  false positives
+- create a detector draft to export reviewed positives plus negatives
+- create a classifier draft only after reviewed labels are consistent enough to
+  become class names
+- retrain the detector first, then the classifier, then export the winning
+  checkpoints to NCNN for the Pi
 
 The deployable checkpoints and NCNN exports are tracked under `models/`.

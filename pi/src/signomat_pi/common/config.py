@@ -31,8 +31,8 @@ class CameraSection(BaseModel):
     device: str | None = None
     index: int | None = None
     fourcc: str | None = None
-    width: int = 1280
-    height: int = 720
+    width: int = 960
+    height: int = 540
     fps: int = 20
     rotation: int = 0
     codec: str = "mp4v"
@@ -64,7 +64,7 @@ class PreprocessingSection(BaseModel):
 
 class InferenceSection(BaseModel):
     enabled: bool = True
-    interval_seconds: float = 0.35
+    interval_seconds: float = 0.25
     save_crops: bool = False
     save_unknown_signs: bool = True
     save_clean_frame: bool = True
@@ -75,8 +75,8 @@ class InferenceSection(BaseModel):
     thumbnail_max_edge: int = 480
     detector_backend: str = "yolo"
     detector_model_path: str = "models/sign_detector_yolo11n_any_sign_ncnn_model"
-    detector_imgsz: int = 640
-    classifier_backend: str = "yolo"
+    detector_imgsz: int = 512
+    classifier_backend: str = "none"
     classifier_model_path: str = "models/sign_classifier_yolo11n_raw_min100_ncnn_model"
     classifier_imgsz: int = 224
     model_verbose: bool = False
