@@ -4,7 +4,12 @@ from pathlib import Path
 from signomat_pi.capture_service.service import CaptureService
 from signomat_pi.common.config import load_config
 from signomat_pi.common.database import Database
-from signomat_pi.sync_service.service import SyncService
+from signomat_pi.sync_service.service import CANONICAL_SYNC_BASE_URL, SyncService, normalize_sync_base_url
+
+
+def test_normalize_sync_base_url_upgrades_legacy_workers_domain():
+    assert normalize_sync_base_url("https://signomat-api.burgat-james.workers.dev") == CANONICAL_SYNC_BASE_URL
+    assert normalize_sync_base_url("https://signomat-api.burgat-james.workers.dev/") == CANONICAL_SYNC_BASE_URL
 
 
 def test_force_sync_batches_metadata_and_marks_queue_synced(tmp_path, monkeypatch):

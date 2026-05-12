@@ -1,8 +1,11 @@
 import SwiftUI
 
 struct ReviewTrainingView: View {
+    private let legacyArchiveAPIBaseURL = "https://signomat-api.burgat-james.workers.dev"
+    private let canonicalArchiveAPIBaseURL = "https://signs.jamesburgat.com"
     @StateObject private var viewModel = ArchiveAdminViewModel()
-    @AppStorage("archiveAPIBaseURL") private var archiveAPIBaseURL = "https://signomat-api.burgat-james.workers.dev"
+    @AppStorage("archiveAPIBaseURL") private var archiveAPIBaseURL = "https://signs.jamesburgat.com"
+    @AppStorage("archiveAdminToken") private var archiveAdminToken = ""
     @State private var draftName = ""
     @State private var selectedModelType: ArchiveTrainingModelType = .detector
     @State private var selectedTripID = ""
@@ -28,14 +31,15 @@ struct ReviewTrainingView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Refresh") {
                         Task {
-                            await viewModel.reload(apiBaseURLString: archiveAPIBaseURL)
+                            await viewModel.reload(apiBaseURLString: archiveAPIBaseURL, adminToken: archiveAdminToken)
                         }
                     }
                     .disabled(viewModel.isLoading)
                 }
             }
             .task {
-                await viewModel.reload(apiBaseURLString: archiveAPIBaseURL)
+                migrateArchiveAPIBaseURLIfNeeded()
+                await viewModel.reload(apiBaseURLString: archiveAPIBaseURL, adminToken: archiveAdminToken)
             }
             .sheet(item: $editingDetection) { detection in
                 DetectionReviewEditor(
@@ -43,6 +47,7 @@ struct ReviewTrainingView: View {
                     saveAction: { updatedDetection in
                         await viewModel.updateReview(
                             apiBaseURLString: archiveAPIBaseURL,
+                            adminToken: archiveAdminToken,
                             eventID: updatedDetection.eventID,
                             request: ArchiveReviewUpdateRequest(
                                 reviewState: updatedDetection.reviewState,
@@ -72,10 +77,15 @@ struct ReviewTrainingView: View {
                 .keyboardType(.URL)
                 .textFieldStyle(.roundedBorder)
 
+            SecureField("Admin token", text: $archiveAdminToken)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textFieldStyle(.roundedBorder)
+
             HStack(spacing: 10) {
                 Button("Reload Review Queue") {
                     Task {
-                        await viewModel.reload(apiBaseURLString: archiveAPIBaseURL)
+                        await viewModel.reload(apiBaseURLString: archiveAPIBaseURL, adminToken: archiveAdminToken)
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -98,6 +108,13 @@ struct ReviewTrainingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.thinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func migrateArchiveAPIBaseURLIfNeeded() {
+        let trimmed = archiveAPIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == legacyArchiveAPIBaseURL {
+            archiveAPIBaseURL = canonicalArchiveAPIBaseURL
+        }
     }
 
     private var summaryCard: some View {
@@ -169,6 +186,7 @@ struct ReviewTrainingView: View {
                 Task {
                     await viewModel.createTrainingJob(
                         apiBaseURLString: archiveAPIBaseURL,
+                        adminToken: archiveAdminToken,
                         request: ArchiveTrainingJobCreateRequest(
                             name: draftName.trimmedNilIfEmpty,
                             modelType: selectedModelType,
@@ -212,6 +230,7 @@ struct ReviewTrainingView: View {
                             Task {
                                 await viewModel.quickUpdateReview(
                                     apiBaseURLString: archiveAPIBaseURL,
+                                    adminToken: archiveAdminToken,
                                     detection: detection,
                                     reviewState: .reviewed
                                 )
@@ -221,6 +240,7 @@ struct ReviewTrainingView: View {
                             Task {
                                 await viewModel.quickUpdateReview(
                                     apiBaseURLString: archiveAPIBaseURL,
+                                    adminToken: archiveAdminToken,
                                     detection: detection,
                                     reviewState: .falsePositive
                                 )

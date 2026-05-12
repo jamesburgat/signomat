@@ -13,7 +13,7 @@ final class ArchiveAdminViewModel: ObservableObject {
 
     private static let reviewQueueLimit = 50
 
-    func reload(apiBaseURLString: String) async {
+    func reload(apiBaseURLString: String, adminToken: String? = nil) async {
         guard let baseURL = normalizedBaseURL(from: apiBaseURLString) else {
             errorMessage = "Enter a valid archive API URL."
             return
@@ -24,9 +24,9 @@ final class ArchiveAdminViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            async let queue: ArchiveReviewQueueResponse = fetch(reviewQueuePath(), baseURL: baseURL)
-            async let summary: ArchiveTrainingSummaryResponse = fetch("/admin/training/summary", baseURL: baseURL)
-            async let jobs: ArchiveTrainingJobsResponse = fetch("/admin/training/jobs", baseURL: baseURL)
+            async let queue: ArchiveReviewQueueResponse = fetch(reviewQueuePath(), baseURL: baseURL, adminToken: adminToken)
+            async let summary: ArchiveTrainingSummaryResponse = fetch("/admin/training/summary", baseURL: baseURL, adminToken: adminToken)
+            async let jobs: ArchiveTrainingJobsResponse = fetch("/admin/training/jobs", baseURL: baseURL, adminToken: adminToken)
             async let tripPayload: ArchiveTripsResponse = fetch("/public/trips?limit=100", baseURL: baseURL)
 
             let (queueResponse, summaryResponse, jobsResponse, tripsResponse) = try await (queue, summary, jobs, tripPayload)
@@ -43,6 +43,7 @@ final class ArchiveAdminViewModel: ObservableObject {
 
     func quickUpdateReview(
         apiBaseURLString: String,
+        adminToken: String? = nil,
         detection: ArchiveDetection,
         reviewState: ArchiveReviewState
     ) async {
@@ -61,11 +62,11 @@ final class ArchiveAdminViewModel: ObservableObject {
         removeDetectionFromQueue(eventID: detection.eventID)
 
         do {
-            let updatedDetection = try await saveReview(baseURL: baseURL, eventID: detection.eventID, request: request)
+            let updatedDetection = try await saveReview(baseURL: baseURL, adminToken: adminToken, eventID: detection.eventID, request: request)
             applyReviewUpdate(updatedDetection)
             errorMessage = nil
             statusMessage = "Saved review for \(detection.eventID)."
-            try await refreshSummary(baseURL: baseURL)
+            try await refreshSummary(baseURL: baseURL, adminToken: adminToken)
         } catch {
             restoreDetectionToQueue(detection, at: originalIndex)
             errorMessage = error.localizedDescription
@@ -74,6 +75,7 @@ final class ArchiveAdminViewModel: ObservableObject {
 
     func updateReview(
         apiBaseURLString: String,
+        adminToken: String? = nil,
         eventID: String,
         request: ArchiveReviewUpdateRequest
     ) async -> Bool {
@@ -83,11 +85,11 @@ final class ArchiveAdminViewModel: ObservableObject {
         }
 
         do {
-            let updatedDetection = try await saveReview(baseURL: baseURL, eventID: eventID, request: request)
+            let updatedDetection = try await saveReview(baseURL: baseURL, adminToken: adminToken, eventID: eventID, request: request)
             applyReviewUpdate(updatedDetection)
             statusMessage = "Saved review for \(eventID)."
             errorMessage = nil
-            try await refreshSummary(baseURL: baseURL)
+            try await refreshSummary(baseURL: baseURL, adminToken: adminToken)
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -97,6 +99,7 @@ final class ArchiveAdminViewModel: ObservableObject {
 
     func createTrainingJob(
         apiBaseURLString: String,
+        adminToken: String? = nil,
         request: ArchiveTrainingJobCreateRequest
     ) async {
         guard let baseURL = normalizedBaseURL(from: apiBaseURLString) else {
@@ -109,11 +112,12 @@ final class ArchiveAdminViewModel: ObservableObject {
                 path: "/admin/training/jobs",
                 method: "POST",
                 payload: request,
-                baseURL: baseURL
+                baseURL: baseURL,
+                adminToken: adminToken
             )
             statusMessage = "Created a new training draft."
             errorMessage = nil
-            await reload(apiBaseURLString: apiBaseURLString)
+            await reload(apiBaseURLString: apiBaseURLString, adminToken: adminToken)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -130,10 +134,11 @@ final class ArchiveAdminViewModel: ObservableObject {
         "/admin/review/queue?limit=\(Self.reviewQueueLimit)&reviewState=\(ArchiveReviewState.unreviewed.rawValue)"
     }
 
-    private func fetch<Response: Decodable>(_ path: String, baseURL: URL) async throws -> Response {
+    private func fetch<Response: Decodable>(_ path: String, baseURL: URL, adminToken: String? = nil) async throws -> Response {
         var request = URLRequest(url: resolvedURL(path: path, baseURL: baseURL))
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        applyAdminToken(adminToken, to: &request)
         let (data, response) = try await URLSession.shared.data(for: request)
         return try decode(Response.self, data: data, response: response)
     }
@@ -142,12 +147,14 @@ final class ArchiveAdminViewModel: ObservableObject {
         path: String,
         method: String,
         payload: RequestBody,
-        baseURL: URL
+        baseURL: URL,
+        adminToken: String? = nil
     ) async throws -> Response {
         var request = URLRequest(url: resolvedURL(path: path, baseURL: baseURL))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        applyAdminToken(adminToken, to: &request)
         request.httpBody = try JSONEncoder().encode(payload)
         let (data, response) = try await URLSession.shared.data(for: request)
         return try decode(Response.self, data: data, response: response)
@@ -155,6 +162,7 @@ final class ArchiveAdminViewModel: ObservableObject {
 
     private func saveReview(
         baseURL: URL,
+        adminToken: String? = nil,
         eventID: String,
         request: ArchiveReviewUpdateRequest
     ) async throws -> ArchiveDetection {
@@ -162,13 +170,14 @@ final class ArchiveAdminViewModel: ObservableObject {
             path: "/admin/detections/\(eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? eventID)/review",
             method: "PATCH",
             payload: request,
-            baseURL: baseURL
+            baseURL: baseURL,
+            adminToken: adminToken
         )
         return response.detection
     }
 
-    private func refreshSummary(baseURL: URL) async throws {
-        let summary: ArchiveTrainingSummaryResponse = try await fetch("/admin/training/summary", baseURL: baseURL)
+    private func refreshSummary(baseURL: URL, adminToken: String? = nil) async throws {
+        let summary: ArchiveTrainingSummaryResponse = try await fetch("/admin/training/summary", baseURL: baseURL, adminToken: adminToken)
         reviewCounts = summary.reviewCounts
         modelMetrics = summary.modelMetrics
     }
@@ -198,6 +207,13 @@ final class ArchiveAdminViewModel: ObservableObject {
     private func resolvedURL(path: String, baseURL: URL) -> URL {
         let normalizedBase = baseURL.absoluteString.hasSuffix("/") ? String(baseURL.absoluteString.dropLast()) : baseURL.absoluteString
         return URL(string: normalizedBase + path) ?? baseURL
+    }
+
+    private func applyAdminToken(_ adminToken: String?, to request: inout URLRequest) {
+        guard let trimmed = adminToken?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return
+        }
+        request.setValue(trimmed, forHTTPHeaderField: "x-signomat-admin-token")
     }
 
     private func decode<Response: Decodable>(_ type: Response.Type, data: Data, response: URLResponse) throws -> Response {

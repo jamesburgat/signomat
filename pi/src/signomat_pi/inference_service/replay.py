@@ -472,6 +472,15 @@ def _build_replay_classifier(config):
             verbose=config.inference.model_verbose,
         )
     if backend in {"none", "disabled", "detector_label"}:
+        model_path = resolve_repo_path(config.inference.classifier_model_path)
+        # Keep live inference lightweight, but use the offline classifier model
+        # for post-trip replay when it is available locally.
+        if model_path.exists():
+            return UltralyticsCropClassifier(
+                model_path=model_path,
+                imgsz=config.inference.classifier_imgsz,
+                verbose=config.inference.model_verbose,
+            )
         return DetectorLabelClassifier()
     if backend == "mock_classifier":
         return MockSignClassifier()
