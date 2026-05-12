@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct ReviewTrainingView: View {
+    private let legacyArchiveAPIBaseURL = "https://signomat-api.burgat-james.workers.dev"
+    private let canonicalArchiveAPIBaseURL = "https://signs.jamesburgat.com"
     @StateObject private var viewModel = ArchiveAdminViewModel()
-    @AppStorage("archiveAPIBaseURL") private var archiveAPIBaseURL = ArchiveDefaults.defaultAPIBaseURL
-    @AppStorage("archiveAdminToken") private var archiveAdminToken = ArchiveDefaults.defaultAdminToken
+    @AppStorage("archiveAPIBaseURL") private var archiveAPIBaseURL = "https://signs.jamesburgat.com"
+    @AppStorage("archiveAdminToken") private var archiveAdminToken = ""
     @State private var draftName = ""
     @State private var selectedModelType: ArchiveTrainingModelType = .detector
     @State private var selectedTripID = ""
@@ -29,21 +31,15 @@ struct ReviewTrainingView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Refresh") {
                         Task {
-                            await viewModel.reload(
-                                apiBaseURLString: archiveAPIBaseURL,
-                                adminTokenString: archiveAdminToken
-                            )
+                            await viewModel.reload(apiBaseURLString: archiveAPIBaseURL, adminToken: archiveAdminToken)
                         }
                     }
                     .disabled(viewModel.isLoading)
                 }
             }
             .task {
-                migrateArchiveSettingsIfNeeded()
-                await viewModel.reload(
-                    apiBaseURLString: archiveAPIBaseURL,
-                    adminTokenString: archiveAdminToken
-                )
+                migrateArchiveAPIBaseURLIfNeeded()
+                await viewModel.reload(apiBaseURLString: archiveAPIBaseURL, adminToken: archiveAdminToken)
             }
             .sheet(item: $editingDetection) { detection in
                 DetectionReviewEditor(
@@ -51,7 +47,7 @@ struct ReviewTrainingView: View {
                     saveAction: { updatedDetection in
                         await viewModel.updateReview(
                             apiBaseURLString: archiveAPIBaseURL,
-                            adminTokenString: archiveAdminToken,
+                            adminToken: archiveAdminToken,
                             eventID: updatedDetection.eventID,
                             request: ArchiveReviewUpdateRequest(
                                 reviewState: updatedDetection.reviewState,
@@ -81,7 +77,7 @@ struct ReviewTrainingView: View {
                 .keyboardType(.URL)
                 .textFieldStyle(.roundedBorder)
 
-            SecureField("Archive Admin Token", text: $archiveAdminToken)
+            SecureField("Admin token", text: $archiveAdminToken)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .textFieldStyle(.roundedBorder)
@@ -89,10 +85,7 @@ struct ReviewTrainingView: View {
             HStack(spacing: 10) {
                 Button("Reload Review Queue") {
                     Task {
-                        await viewModel.reload(
-                            apiBaseURLString: archiveAPIBaseURL,
-                            adminTokenString: archiveAdminToken
-                        )
+                        await viewModel.reload(apiBaseURLString: archiveAPIBaseURL, adminToken: archiveAdminToken)
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -115,6 +108,13 @@ struct ReviewTrainingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.thinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func migrateArchiveAPIBaseURLIfNeeded() {
+        let trimmed = archiveAPIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == legacyArchiveAPIBaseURL {
+            archiveAPIBaseURL = canonicalArchiveAPIBaseURL
+        }
     }
 
     private var summaryCard: some View {
@@ -186,7 +186,7 @@ struct ReviewTrainingView: View {
                 Task {
                     await viewModel.createTrainingJob(
                         apiBaseURLString: archiveAPIBaseURL,
-                        adminTokenString: archiveAdminToken,
+                        adminToken: archiveAdminToken,
                         request: ArchiveTrainingJobCreateRequest(
                             name: draftName.trimmedNilIfEmpty,
                             modelType: selectedModelType,
@@ -230,7 +230,7 @@ struct ReviewTrainingView: View {
                             Task {
                                 await viewModel.quickUpdateReview(
                                     apiBaseURLString: archiveAPIBaseURL,
-                                    adminTokenString: archiveAdminToken,
+                                    adminToken: archiveAdminToken,
                                     detection: detection,
                                     reviewState: .reviewed
                                 )
@@ -240,7 +240,7 @@ struct ReviewTrainingView: View {
                             Task {
                                 await viewModel.quickUpdateReview(
                                     apiBaseURLString: archiveAPIBaseURL,
-                                    adminTokenString: archiveAdminToken,
+                                    adminToken: archiveAdminToken,
                                     detection: detection,
                                     reviewState: .falsePositive
                                 )
@@ -336,24 +336,6 @@ struct ReviewTrainingView: View {
         .padding()
         .background(Color.secondary.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    private func migrateArchiveSettingsIfNeeded() {
-        archiveAPIBaseURL = ArchiveDefaults.migratedAPIBaseURL(from: archiveAPIBaseURL)
-    }
-}
-
-private enum ArchiveDefaults {
-    static let legacyAPIBaseURL = "https://signomat-api.burgat-james.workers.dev"
-    static let defaultAPIBaseURL = "https://signs.jamesburgat.com"
-    static let defaultAdminToken = ""
-
-    static func migratedAPIBaseURL(from rawValue: String) -> String {
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return defaultAPIBaseURL
-        }
-        return trimmed == legacyAPIBaseURL ? defaultAPIBaseURL : trimmed
     }
 }
 

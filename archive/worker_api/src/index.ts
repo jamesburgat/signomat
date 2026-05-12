@@ -57,11 +57,15 @@ export default {
       }
 
       if (request.method === "POST" && url.pathname === "/ingest/batch") {
-        return handleIngestBatch(ctx);
+        return await handleIngestBatch(ctx);
       }
 
       if (request.method === "PUT" && url.pathname === "/ingest/media") {
-        return handleIngestMedia(ctx);
+        return await handleIngestMedia(ctx);
+      }
+
+      if (request.method === "GET" && url.pathname === "/public/stats") {
+        return await handlePublicStats(ctx);
       }
 
       if (request.method === "GET" && url.pathname === "/public/stats") {
@@ -69,58 +73,58 @@ export default {
       }
 
       if (request.method === "GET" && url.pathname === "/public/detections") {
-        return handlePublicDetections(ctx);
+        return await handlePublicDetections(ctx);
       }
 
       if (request.method === "GET" && url.pathname.startsWith("/public/detections/")) {
         const eventId = decodeURIComponent(url.pathname.split("/").pop() ?? "");
-        return handlePublicDetectionDetail(ctx, eventId);
+        return await handlePublicDetectionDetail(ctx, eventId);
       }
 
       if (request.method === "GET" && url.pathname === "/public/trips") {
-        return handlePublicTrips(ctx);
+        return await handlePublicTrips(ctx);
       }
 
       if (request.method === "GET" && url.pathname.startsWith("/public/trips/")) {
         const tripId = decodeURIComponent(url.pathname.split("/").pop() ?? "");
-        return handlePublicTripDetail(ctx, tripId);
+        return await handlePublicTripDetail(ctx, tripId);
       }
 
       if (request.method === "GET" && url.pathname.startsWith("/public/assets/")) {
-        return handlePublicAsset(ctx);
+        return await handlePublicAsset(ctx);
       }
 
       if (request.method === "GET" && url.pathname === "/admin/review/queue") {
-        return handleAdminReviewQueue(ctx);
+        return await handleAdminReviewQueue(ctx);
       }
 
       if (request.method === "PATCH" && url.pathname.startsWith("/admin/detections/") && url.pathname.endsWith("/review")) {
         const parts = url.pathname.split("/");
         const eventId = decodeURIComponent(parts[3] ?? "");
-        return handleAdminDetectionReviewUpdate(ctx, eventId);
+        return await handleAdminDetectionReviewUpdate(ctx, eventId);
       }
 
       if (request.method === "GET" && url.pathname === "/admin/training/summary") {
-        return handleAdminTrainingSummary(ctx);
+        return await handleAdminTrainingSummary(ctx);
       }
 
       if (request.method === "GET" && url.pathname === "/admin/training/jobs") {
-        return handleAdminTrainingJobs(ctx);
+        return await handleAdminTrainingJobs(ctx);
       }
 
       if (request.method === "POST" && url.pathname === "/admin/training/jobs") {
-        return handleAdminTrainingJobCreate(ctx);
+        return await handleAdminTrainingJobCreate(ctx);
       }
 
       if (request.method === "GET" && url.pathname.startsWith("/admin/training/jobs/") && url.pathname.endsWith("/export")) {
         const parts = url.pathname.split("/");
         const jobId = decodeURIComponent(parts[4] ?? "");
-        return handleAdminTrainingJobExport(ctx, jobId);
+        return await handleAdminTrainingJobExport(ctx, jobId);
       }
 
       return json({ ok: false, error: "not_found" }, 404);
     } catch (error) {
-      if (error instanceof HttpError) {
+      if (isHttpError(error)) {
         return json({ ok: false, error: error.message }, error.status);
       }
       const message = error instanceof Error ? error.message : "internal_error";
@@ -134,8 +138,19 @@ class HttpError extends Error {
 
   constructor(status: number, message: string) {
     super(message);
+    this.name = "HttpError";
     this.status = status;
+    Object.setPrototypeOf(this, HttpError.prototype);
   }
+}
+
+function isHttpError(error: unknown): error is HttpError {
+  return error instanceof HttpError || (
+    typeof error === "object" &&
+    error !== null &&
+    typeof (error as { status?: unknown }).status === "number" &&
+    typeof (error as { message?: unknown }).message === "string"
+  );
 }
 
 async function handleIngestBatch(ctx: RouteContext): Promise<Response> {

@@ -15,6 +15,9 @@ from signomat_pi.common.config import resolve_repo_path
 
 LOGGER = logging.getLogger(__name__)
 
+LEGACY_SYNC_BASE_URL = "https://signomat-api.burgat-james.workers.dev"
+CANONICAL_SYNC_BASE_URL = "https://signs.jamesburgat.com"
+
 
 class SyncService:
     def __init__(self, config, database):
@@ -44,7 +47,7 @@ class SyncService:
         return summary
 
     def start(self) -> None:
-        if not self.config.sync.enabled or not self.config.sync.base_url or not self.config.sync.ingest_token:
+        if not self.config.sync.enabled or not self._configured_base_url() or not self.config.sync.ingest_token:
             return
         self.stop_event.clear()
         self.thread = threading.Thread(target=self._sync_loop, name="sync-worker", daemon=True)
@@ -60,7 +63,7 @@ class SyncService:
         if not self.config.sync.enabled:
             self.last_result = "disabled"
             return {"ok": False, "message": "sync is disabled"}
-        if not self.config.sync.base_url or not self.config.sync.ingest_token:
+        if not self._configured_base_url() or not self.config.sync.ingest_token:
             self.last_result = "misconfigured"
             self.last_error = "missing sync base URL or ingest token"
             return {"ok": False, "message": self.last_error}
@@ -223,7 +226,9 @@ class SyncService:
         return {"ok": True, "hard_error": False, "deferred": False, "response": response, "counts": {"items": len(metadata_items)}}
 
     def _post_json(self, path: str, payload: dict) -> dict:
-        base_url = (self.config.sync.base_url or "").rstrip("/")
+        base_url = self._configured_base_url()
+        if not base_url:
+            raise RuntimeError("missing sync base URL")
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         req = request.Request(
             f"{base_url}{path}",
@@ -247,7 +252,9 @@ class SyncService:
             raise RuntimeError(f"sync connection failed: {exc.reason}") from exc
 
     def _put_media(self, *, bucket: str, key: str, file_path: Path, content_type: str) -> dict:
-        base_url = (self.config.sync.base_url or "").rstrip("/")
+        base_url = self._configured_base_url()
+        if not base_url:
+            raise RuntimeError("missing sync base URL")
         target = f"{base_url}/ingest/media?{parse.urlencode({'bucket': bucket, 'key': key})}"
         parsed = parse.urlparse(target)
         connection_cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
@@ -299,6 +306,9 @@ class SyncService:
         size_mb = size_bytes / 1024 / 1024
         return f"media kept local; exceeds upload limit ({size_mb:.1f} MB > {limit_mb} MB): {local_path}"
 
+    def _configured_base_url(self) -> str | None:
+        return normalize_sync_base_url(self.config.sync.base_url)
+
     def _mark_upload_failure(self, queue_ids: list[str], retry_count: int, message: str) -> None:
         next_attempt_utc = _backoff_time_text(retry_count)
         self.database.mark_upload_items_state(
@@ -349,6 +359,23 @@ def _asset_pointer(local_path: str | None) -> dict | None:
         return None
     bucket = _bucket_name_for_path(local_path)
     return {"bucket": bucket, "key": local_path}
+
+
+def normalize_sync_base_url(raw_base_url: str | None) -> str | None:
+    if not raw_base_url:
+        return None
+
+    trimmed = raw_base_url.strip().rstrip("/")
+    if not trimmed:
+        return None
+    if trimmed == LEGACY_SYNC_BASE_URL:
+        return CANONICAL_SYNC_BASE_URL
+
+    parsed = parse.urlparse(trimmed)
+    legacy = parse.urlparse(LEGACY_SYNC_BASE_URL)
+    if parsed.scheme in {"http", "https"} and parsed.netloc.lower() == legacy.netloc.lower():
+        return CANONICAL_SYNC_BASE_URL
+    return trimmed
 
 
 def _serialize_trip(row: dict) -> dict:
