@@ -13,20 +13,21 @@ final class ArchiveAdminViewModel: ObservableObject {
 
     private static let reviewQueueLimit = 50
 
-    func reload(apiBaseURLString: String) async {
+    func reload(apiBaseURLString: String, adminTokenString: String? = nil) async {
         guard let baseURL = normalizedBaseURL(from: apiBaseURLString) else {
             errorMessage = "Enter a valid archive API URL."
             return
         }
+        let adminToken = normalizedAdminToken(from: adminTokenString)
 
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
-            async let queue: ArchiveReviewQueueResponse = fetch(reviewQueuePath(), baseURL: baseURL)
-            async let summary: ArchiveTrainingSummaryResponse = fetch("/admin/training/summary", baseURL: baseURL)
-            async let jobs: ArchiveTrainingJobsResponse = fetch("/admin/training/jobs", baseURL: baseURL)
+            async let queue: ArchiveReviewQueueResponse = fetch(reviewQueuePath(), baseURL: baseURL, adminToken: adminToken)
+            async let summary: ArchiveTrainingSummaryResponse = fetch("/admin/training/summary", baseURL: baseURL, adminToken: adminToken)
+            async let jobs: ArchiveTrainingJobsResponse = fetch("/admin/training/jobs", baseURL: baseURL, adminToken: adminToken)
             async let tripPayload: ArchiveTripsResponse = fetch("/public/trips?limit=100", baseURL: baseURL)
 
             let (queueResponse, summaryResponse, jobsResponse, tripsResponse) = try await (queue, summary, jobs, tripPayload)
@@ -43,6 +44,7 @@ final class ArchiveAdminViewModel: ObservableObject {
 
     func quickUpdateReview(
         apiBaseURLString: String,
+        adminTokenString: String? = nil,
         detection: ArchiveDetection,
         reviewState: ArchiveReviewState
     ) async {
@@ -50,6 +52,7 @@ final class ArchiveAdminViewModel: ObservableObject {
             errorMessage = "Enter a valid archive API URL."
             return
         }
+        let adminToken = normalizedAdminToken(from: adminTokenString)
 
         let request = ArchiveReviewUpdateRequest(
             reviewState: reviewState,
@@ -61,11 +64,16 @@ final class ArchiveAdminViewModel: ObservableObject {
         removeDetectionFromQueue(eventID: detection.eventID)
 
         do {
-            let updatedDetection = try await saveReview(baseURL: baseURL, eventID: detection.eventID, request: request)
+            let updatedDetection = try await saveReview(
+                baseURL: baseURL,
+                adminToken: adminToken,
+                eventID: detection.eventID,
+                request: request
+            )
             applyReviewUpdate(updatedDetection)
             errorMessage = nil
             statusMessage = "Saved review for \(detection.eventID)."
-            try await refreshSummary(baseURL: baseURL)
+            try await refreshSummary(baseURL: baseURL, adminToken: adminToken)
         } catch {
             restoreDetectionToQueue(detection, at: originalIndex)
             errorMessage = error.localizedDescription
@@ -74,6 +82,7 @@ final class ArchiveAdminViewModel: ObservableObject {
 
     func updateReview(
         apiBaseURLString: String,
+        adminTokenString: String? = nil,
         eventID: String,
         request: ArchiveReviewUpdateRequest
     ) async -> Bool {
@@ -81,13 +90,19 @@ final class ArchiveAdminViewModel: ObservableObject {
             errorMessage = "Enter a valid archive API URL."
             return false
         }
+        let adminToken = normalizedAdminToken(from: adminTokenString)
 
         do {
-            let updatedDetection = try await saveReview(baseURL: baseURL, eventID: eventID, request: request)
+            let updatedDetection = try await saveReview(
+                baseURL: baseURL,
+                adminToken: adminToken,
+                eventID: eventID,
+                request: request
+            )
             applyReviewUpdate(updatedDetection)
             statusMessage = "Saved review for \(eventID)."
             errorMessage = nil
-            try await refreshSummary(baseURL: baseURL)
+            try await refreshSummary(baseURL: baseURL, adminToken: adminToken)
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -97,23 +112,26 @@ final class ArchiveAdminViewModel: ObservableObject {
 
     func createTrainingJob(
         apiBaseURLString: String,
+        adminTokenString: String? = nil,
         request: ArchiveTrainingJobCreateRequest
     ) async {
         guard let baseURL = normalizedBaseURL(from: apiBaseURLString) else {
             errorMessage = "Enter a valid archive API URL."
             return
         }
+        let adminToken = normalizedAdminToken(from: adminTokenString)
 
         do {
             let _: ArchiveTrainingJobCreateResponse = try await send(
                 path: "/admin/training/jobs",
                 method: "POST",
                 payload: request,
-                baseURL: baseURL
+                baseURL: baseURL,
+                adminToken: adminToken
             )
             statusMessage = "Created a new training draft."
             errorMessage = nil
-            await reload(apiBaseURLString: apiBaseURLString)
+            await reload(apiBaseURLString: apiBaseURLString, adminTokenString: adminTokenString)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -126,14 +144,23 @@ final class ArchiveAdminViewModel: ObservableObject {
         return URL(string: candidate)
     }
 
+    private func normalizedAdminToken(from raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private func reviewQueuePath() -> String {
         "/admin/review/queue?limit=\(Self.reviewQueueLimit)&reviewState=\(ArchiveReviewState.unreviewed.rawValue)"
     }
 
-    private func fetch<Response: Decodable>(_ path: String, baseURL: URL) async throws -> Response {
-        var request = URLRequest(url: resolvedURL(path: path, baseURL: baseURL))
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+    private func fetch<Response: Decodable>(_ path: String, baseURL: URL, adminToken: String? = nil) async throws -> Response {
+        let request = configuredRequest(
+            path: path,
+            method: "GET",
+            baseURL: baseURL,
+            adminToken: adminToken
+        )
         let (data, response) = try await URLSession.shared.data(for: request)
         return try decode(Response.self, data: data, response: response)
     }
@@ -142,12 +169,16 @@ final class ArchiveAdminViewModel: ObservableObject {
         path: String,
         method: String,
         payload: RequestBody,
-        baseURL: URL
+        baseURL: URL,
+        adminToken: String? = nil
     ) async throws -> Response {
-        var request = URLRequest(url: resolvedURL(path: path, baseURL: baseURL))
-        request.httpMethod = method
+        var request = configuredRequest(
+            path: path,
+            method: method,
+            baseURL: baseURL,
+            adminToken: adminToken
+        )
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = try JSONEncoder().encode(payload)
         let (data, response) = try await URLSession.shared.data(for: request)
         return try decode(Response.self, data: data, response: response)
@@ -155,6 +186,7 @@ final class ArchiveAdminViewModel: ObservableObject {
 
     private func saveReview(
         baseURL: URL,
+        adminToken: String?,
         eventID: String,
         request: ArchiveReviewUpdateRequest
     ) async throws -> ArchiveDetection {
@@ -162,13 +194,18 @@ final class ArchiveAdminViewModel: ObservableObject {
             path: "/admin/detections/\(eventID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? eventID)/review",
             method: "PATCH",
             payload: request,
-            baseURL: baseURL
+            baseURL: baseURL,
+            adminToken: adminToken
         )
         return response.detection
     }
 
-    private func refreshSummary(baseURL: URL) async throws {
-        let summary: ArchiveTrainingSummaryResponse = try await fetch("/admin/training/summary", baseURL: baseURL)
+    private func refreshSummary(baseURL: URL, adminToken: String?) async throws {
+        let summary: ArchiveTrainingSummaryResponse = try await fetch(
+            "/admin/training/summary",
+            baseURL: baseURL,
+            adminToken: adminToken
+        )
         reviewCounts = summary.reviewCounts
         modelMetrics = summary.modelMetrics
     }
@@ -198,6 +235,21 @@ final class ArchiveAdminViewModel: ObservableObject {
     private func resolvedURL(path: String, baseURL: URL) -> URL {
         let normalizedBase = baseURL.absoluteString.hasSuffix("/") ? String(baseURL.absoluteString.dropLast()) : baseURL.absoluteString
         return URL(string: normalizedBase + path) ?? baseURL
+    }
+
+    private func configuredRequest(
+        path: String,
+        method: String,
+        baseURL: URL,
+        adminToken: String?
+    ) -> URLRequest {
+        var request = URLRequest(url: resolvedURL(path: path, baseURL: baseURL))
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if path.hasPrefix("/admin/"), let adminToken {
+            request.setValue("Bearer \(adminToken)", forHTTPHeaderField: "Authorization")
+        }
+        return request
     }
 
     private func decode<Response: Decodable>(_ type: Response.Type, data: Data, response: URLResponse) throws -> Response {

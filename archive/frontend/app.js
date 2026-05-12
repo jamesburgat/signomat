@@ -6,12 +6,14 @@ const configStatus = document.getElementById("config-status");
 const configHint = document.getElementById("config-hint");
 
 const state = {
-  apiBase: localStorage.getItem("signomat_api_base") || defaultApiBase(),
+  apiBase: migrateApiBase(localStorage.getItem("signomat_api_base")),
   adminToken: localStorage.getItem("signomat_admin_token") || "",
   archiveBundle: null,
   archiveBundlePromise: null,
   activeMaps: [],
 };
+
+localStorage.setItem("signomat_api_base", state.apiBase);
 
 apiBaseInput.value = state.apiBase;
 adminTokenInput.value = state.adminToken;
@@ -1272,7 +1274,15 @@ function defaultApiBase() {
   if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
     return "http://127.0.0.1:8787";
   }
-  return "https://signomat-api.burgat-james.workers.dev";
+  return "https://signs.jamesburgat.com";
+}
+
+function migrateApiBase(value) {
+  const normalized = normalizeBase(value || defaultApiBase());
+  if (normalized === "https://signomat-api.burgat-james.workers.dev") {
+    return defaultApiBase();
+  }
+  return normalized;
 }
 
 function formatDate(value) {
