@@ -1,7 +1,11 @@
 # Archive UI Handoff
 
-Use this when you are ready to design the public archive/map experience and want
-the implementation to stay fast and predictable.
+This is now a historical handoff/planning note rather than the primary source
+of truth for the current archive UI.
+
+The archive map/detail/review/training flows have already been implemented in
+`archive/frontend`. Use this file when redesigning or significantly reshaping
+those screens, not when trying to understand what currently exists.
 
 ## 1. Screens
 

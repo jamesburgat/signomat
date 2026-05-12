@@ -3,8 +3,25 @@
   "name": "signomat-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-03-30",
+  "routes": [
+    {
+      "pattern": "signs.jamesburgat.com",
+      "custom_domain": true
+    }
+  ],
   "observability": {
     "enabled": true
+  },
+  "assets": {
+    "directory": "../frontend",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/health",
+      "/config-check",
+      "/ingest/*",
+      "/public/*",
+      "/admin/*"
+    ]
   },
   "d1_databases": [
     {
@@ -24,6 +41,6 @@
     }
   ],
   "vars": {
-    "PUBLIC_BASE_URL": "https://signomat-api.burgat-james.workers.dev"
+    "PUBLIC_BASE_URL": "https://signs.jamesburgat.com"
   }
 }

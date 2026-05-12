@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/deploy-worker.yml"
       - "archive/shared/**"
+      - "archive/frontend/**"
       - "archive/worker_api/**"
   workflow_dispatch:
 
@@ -26,7 +27,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: archive/worker_api
-          wranglerVersion: "4.9.0"
+          wranglerVersion: "4.86.0"
           preCommands: wrangler d1 migrations apply ARCHIVE_DB --remote
           secrets: |
             SIGNOMAT_INGEST_TOKEN

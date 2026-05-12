@@ -1,8 +1,20 @@
 # Archive Site Spec
 
-Use this file to define the smallest useful version of the archive site before
-we build it. Keep it minimal. The goal is a clean public archive first, with a
-small separate admin/review mode.
+This file is now mainly a historical planning worksheet.
+
+The archive has already moved past the "pre-build spec" stage. The current
+implemented archive lives under `archive/frontend` and `archive/worker_api` and
+includes:
+
+- a public archive map
+- trip detail
+- detection detail
+- protected admin review
+- protected training/export draft flows
+
+Keep the rest of this document around as reference for the design intent and
+interaction priorities that shaped the current implementation, not as a source
+of truth for what is still unbuilt.
 
 ## Build Philosophy
 

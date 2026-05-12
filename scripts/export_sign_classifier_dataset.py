@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from collections import Counter, defaultdict
 from pathlib import Path
 import re
@@ -119,13 +120,21 @@ def crop_filename(record: dict[str, Any], class_id: str) -> str:
     return f"{stem}_{digest}.jpg"
 
 
-def load_archive_export(archive_export: Path | None, archive_export_url: str | None, timeout_seconds: float) -> tuple[dict[str, Any], str]:
+def load_archive_export(
+    archive_export: Path | None,
+    archive_export_url: str | None,
+    timeout_seconds: float,
+    archive_auth_token: str | None,
+) -> tuple[dict[str, Any], str]:
     if archive_export and archive_export_url:
         raise SystemExit("Use either --archive-export or --archive-export-url, not both.")
     if archive_export:
         return json.loads(archive_export.read_text(encoding="utf-8")), str(archive_export)
     if archive_export_url:
-        request = urllib.request.Request(archive_export_url, headers={"Accept": "application/json"})
+        headers = {"Accept": "application/json"}
+        if archive_auth_token:
+            headers["Authorization"] = f"Bearer {archive_auth_token}"
+        request = urllib.request.Request(archive_export_url, headers=headers)
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             return json.loads(response.read().decode("utf-8")), archive_export_url
     raise SystemExit("Archive export mode requires --archive-export or --archive-export-url.")
@@ -654,6 +663,11 @@ def parse_args() -> argparse.Namespace:
         default="specific_or_category",
         help="Which reviewed archive label field should become the classifier class name.",
     )
+    parser.add_argument(
+        "--archive-auth-token",
+        default=os.environ.get("SIGNOMAT_ARCHIVE_TOKEN"),
+        help="Optional bearer token used when downloading a protected archive export JSON endpoint.",
+    )
     return parser.parse_args()
 
 
@@ -670,6 +684,7 @@ def main() -> int:
             archive_export=args.archive_export,
             archive_export_url=args.archive_export_url,
             timeout_seconds=args.download_timeout_seconds,
+            archive_auth_token=args.archive_auth_token,
         )
         cache_dir = args.archive_cache_dir or (output_dir / "_archive_cache")
         summary = export_archive_classifier_dataset(

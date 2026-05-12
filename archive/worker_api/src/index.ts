@@ -13,6 +13,7 @@ export interface Env {
   MEDIA_BUCKET: R2Bucket;
   THUMBS_BUCKET: R2Bucket;
   SIGNOMAT_INGEST_TOKEN: string;
+  SIGNOMAT_ADMIN_TOKEN?: string;
   PUBLIC_BASE_URL?: string;
 }
 
@@ -50,6 +51,7 @@ export default {
         return json({
           ok: true,
           hasIngestToken: Boolean(env.SIGNOMAT_INGEST_TOKEN),
+          hasAdminToken: Boolean(env.SIGNOMAT_ADMIN_TOKEN),
           hasPublicBaseUrl: Boolean(env.PUBLIC_BASE_URL),
         });
       }
@@ -60,6 +62,10 @@ export default {
 
       if (request.method === "PUT" && url.pathname === "/ingest/media") {
         return handleIngestMedia(ctx);
+      }
+
+      if (request.method === "GET" && url.pathname === "/public/stats") {
+        return handlePublicStats(ctx);
       }
 
       if (request.method === "GET" && url.pathname === "/public/detections") {
@@ -198,26 +204,8 @@ async function handleIngestMedia(ctx: RouteContext): Promise<Response> {
 }
 
 async function handlePublicDetections(ctx: RouteContext): Promise<Response> {
-  const limit = clampInt(ctx.url.searchParams.get("limit"), 1, 300, 60);
-  const category = ctx.url.searchParams.get("category");
-  const tripId = ctx.url.searchParams.get("tripId");
-  const reviewState = parseReviewStateParam(ctx.url.searchParams.get("reviewState"));
-
-  const filters: string[] = [];
-  const bindings: unknown[] = [];
-  if (category) {
-    filters.push("category_label = ?");
-    bindings.push(category);
-  }
-  if (tripId) {
-    filters.push("trip_id = ?");
-    bindings.push(tripId);
-  }
-  if (reviewState) {
-    filters.push("review_state = ?");
-    bindings.push(reviewState);
-  }
-  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+  const limit = clampInt(ctx.url.searchParams.get("limit"), 1, 1000, 120);
+  const { where, bindings } = buildPublicDetectionFilters(ctx.url);
 
   const result = await ctx.env.ARCHIVE_DB.prepare(
     `SELECT
@@ -265,6 +253,53 @@ async function handlePublicDetections(ctx: RouteContext): Promise<Response> {
   return json({
     ok: true,
     detections: (result.results ?? []).map((row) => serializeDetectionCard(ctx.env, row)),
+  });
+}
+
+async function handlePublicStats(ctx: RouteContext): Promise<Response> {
+  const totals = await ctx.env.ARCHIVE_DB.prepare(
+    `SELECT
+       COUNT(*) AS detection_count,
+       COUNT(DISTINCT trip_id) AS trip_count,
+       SUM(CASE WHEN gps_lat IS NOT NULL AND gps_lon IS NOT NULL THEN 1 ELSE 0 END) AS gps_detection_count,
+       SUM(CASE WHEN review_state = 'reviewed' THEN 1 ELSE 0 END) AS reviewed_count,
+       SUM(CASE WHEN review_state = 'false_positive' THEN 1 ELSE 0 END) AS false_positive_count,
+       SUM(CASE WHEN review_state = 'unreviewed' THEN 1 ELSE 0 END) AS unreviewed_count
+     FROM detections`
+  ).first<Record<string, unknown>>();
+
+  const categories = await ctx.env.ARCHIVE_DB.prepare(
+    `SELECT
+       category_label,
+       COUNT(*) AS count
+     FROM detections
+     GROUP BY category_label
+     ORDER BY count DESC, category_label ASC
+     LIMIT 24`
+  ).all<Record<string, unknown>>();
+
+  const latestDetection = await ctx.env.ARCHIVE_DB.prepare(
+    `SELECT timestamp_utc
+     FROM detections
+     ORDER BY timestamp_utc DESC
+     LIMIT 1`
+  ).first<Record<string, unknown>>();
+
+  return json({
+    ok: true,
+    totals: {
+      detectionCount: asNumber(totals?.detection_count, 0),
+      tripCount: asNumber(totals?.trip_count, 0),
+      gpsDetectionCount: asNumber(totals?.gps_detection_count, 0),
+      reviewedCount: asNumber(totals?.reviewed_count, 0),
+      falsePositiveCount: asNumber(totals?.false_positive_count, 0),
+      unreviewedCount: asNumber(totals?.unreviewed_count, 0),
+      latestDetectionUtc: asNullableString(latestDetection?.timestamp_utc),
+    },
+    categories: (categories.results ?? []).map((row) => ({
+      categoryLabel: asString(row.category_label),
+      count: asNumber(row.count, 0),
+    })),
   });
 }
 
@@ -481,6 +516,8 @@ async function handlePublicAsset(ctx: RouteContext): Promise<Response> {
 }
 
 async function handleAdminReviewQueue(ctx: RouteContext): Promise<Response> {
+  requireAdminAuth(ctx);
+
   const limit = clampInt(ctx.url.searchParams.get("limit"), 1, 300, 80);
   const tripId = ctx.url.searchParams.get("tripId");
   const rawReviewState = ctx.url.searchParams.get("reviewState");
@@ -548,6 +585,8 @@ async function handleAdminReviewQueue(ctx: RouteContext): Promise<Response> {
 }
 
 async function handleAdminDetectionReviewUpdate(ctx: RouteContext, eventId: string): Promise<Response> {
+  requireAdminAuth(ctx);
+
   const payload = (await ctx.request.json()) as {
     reviewState?: ReviewState | null;
     notes?: string | null;
@@ -586,6 +625,8 @@ async function handleAdminDetectionReviewUpdate(ctx: RouteContext, eventId: stri
 }
 
 async function handleAdminTrainingSummary(ctx: RouteContext): Promise<Response> {
+  requireAdminAuth(ctx);
+
   const reviewCounts = await ctx.env.ARCHIVE_DB.prepare(
     `SELECT review_state, COUNT(*) AS count
      FROM detections
@@ -652,6 +693,8 @@ async function handleAdminTrainingSummary(ctx: RouteContext): Promise<Response> 
 }
 
 async function handleAdminTrainingJobs(ctx: RouteContext): Promise<Response> {
+  requireAdminAuth(ctx);
+
   const result = await ctx.env.ARCHIVE_DB.prepare(
     `SELECT
        job_id,
@@ -677,6 +720,8 @@ async function handleAdminTrainingJobs(ctx: RouteContext): Promise<Response> {
 }
 
 async function handleAdminTrainingJobCreate(ctx: RouteContext): Promise<Response> {
+  requireAdminAuth(ctx);
+
   const payload = (await ctx.request.json()) as {
     name?: string | null;
     modelType?: string | null;
@@ -762,6 +807,8 @@ async function handleAdminTrainingJobCreate(ctx: RouteContext): Promise<Response
 }
 
 async function handleAdminTrainingJobExport(ctx: RouteContext, jobId: string): Promise<Response> {
+  requireAdminAuth(ctx);
+
   const row = await ctx.env.ARCHIVE_DB.prepare(
     `SELECT
        job_id,
@@ -950,9 +997,9 @@ function suggestedTrainingCommand(
     return `Download the ${modelType} draft export for ${scopeNote}${falsePositiveNote} and convert it into a local training dataset.`;
   }
   if (modelType === "classifier") {
-    return `python scripts/export_sign_classifier_dataset.py --archive-export-url "${exportUrl}" --output-dir data/training/exports/${jobId}  # classifier crop dataset from ${scopeNote}, filtered to ${reviewState}${falsePositiveNote}`;
+    return `python scripts/export_sign_classifier_dataset.py --archive-export-url "${exportUrl}" --archive-auth-token "$SIGNOMAT_ARCHIVE_TOKEN" --output-dir data/training/exports/${jobId}  # classifier crop dataset from ${scopeNote}, filtered to ${reviewState}${falsePositiveNote}`;
   }
-  return `python scripts/export_yolo_detection_dataset.py --archive-export-url "${exportUrl}" --output-dir data/training/exports/${jobId} --image-mode copy  # detector dataset from ${scopeNote}, filtered to ${reviewState}${falsePositiveNote}`;
+  return `python scripts/export_yolo_detection_dataset.py --archive-export-url "${exportUrl}" --archive-auth-token "$SIGNOMAT_ARCHIVE_TOKEN" --output-dir data/training/exports/${jobId} --image-mode copy  # detector dataset from ${scopeNote}, filtered to ${reviewState}${falsePositiveNote}`;
 }
 
 function defaultTrainingJobName(modelType: string, tripId: string | null): string {
@@ -964,6 +1011,19 @@ function requireIngestAuth(ctx: RouteContext): void {
   const expected = `Bearer ${ctx.env.SIGNOMAT_INGEST_TOKEN}`;
   if (auth !== expected) {
     throw new HttpError(401, "unauthorized");
+  }
+}
+
+function requireAdminAuth(ctx: RouteContext): void {
+  const expectedToken = trimOrNull(ctx.env.SIGNOMAT_ADMIN_TOKEN);
+  if (!expectedToken) {
+    throw new HttpError(503, "admin_auth_not_configured");
+  }
+
+  const headerToken = trimOrNull(ctx.request.headers.get("x-signomat-admin-token"));
+  const authToken = extractBearerToken(ctx.request.headers.get("authorization"));
+  if (headerToken !== expectedToken && authToken !== expectedToken) {
+    throw new HttpError(401, "admin_unauthorized");
   }
 }
 
@@ -1241,6 +1301,84 @@ function parseReviewStateParam(raw: string | null): ReviewState | null {
   return raw as ReviewState;
 }
 
+function buildPublicDetectionFilters(url: URL): { where: string; bindings: unknown[] } {
+  const category = trimOrNull(url.searchParams.get("category"));
+  const tripId = trimOrNull(url.searchParams.get("tripId"));
+  const reviewState = parseReviewStateParam(url.searchParams.get("reviewState"));
+  const search = trimOrNull(url.searchParams.get("q"));
+  const hasGps = parseBooleanParam(url.searchParams.get("hasGps"));
+  const recordedAfter = trimOrNull(url.searchParams.get("after"));
+  const recordedBefore = trimOrNull(url.searchParams.get("before"));
+
+  const filters: string[] = [];
+  const bindings: unknown[] = [];
+  if (category) {
+    filters.push("category_label = ?");
+    bindings.push(category);
+  }
+  if (tripId) {
+    filters.push("trip_id = ?");
+    bindings.push(tripId);
+  }
+  if (reviewState) {
+    filters.push("review_state = ?");
+    bindings.push(reviewState);
+  }
+  if (hasGps === true) {
+    filters.push("gps_lat IS NOT NULL AND gps_lon IS NOT NULL");
+  }
+  if (hasGps === false) {
+    filters.push("(gps_lat IS NULL OR gps_lon IS NULL)");
+  }
+  if (recordedAfter) {
+    filters.push("timestamp_utc >= ?");
+    bindings.push(recordedAfter);
+  }
+  if (recordedBefore) {
+    filters.push("timestamp_utc <= ?");
+    bindings.push(recordedBefore);
+  }
+  if (search) {
+    const pattern = `%${escapeLike(search)}%`;
+    filters.push(`(
+      trip_id LIKE ? ESCAPE '\\'
+      OR category_label LIKE ? ESCAPE '\\'
+      OR COALESCE(specific_label, '') LIKE ? ESCAPE '\\'
+      OR COALESCE(notes, '') LIKE ? ESCAPE '\\'
+    )`);
+    bindings.push(pattern, pattern, pattern, pattern);
+  }
+  return {
+    where: filters.length ? `WHERE ${filters.join(" AND ")}` : "",
+    bindings,
+  };
+}
+
+function parseBooleanParam(raw: string | null): boolean | null {
+  if (raw === null || raw === "") {
+    return null;
+  }
+  if (raw === "1" || raw === "true") {
+    return true;
+  }
+  if (raw === "0" || raw === "false") {
+    return false;
+  }
+  throw new HttpError(400, "invalid_boolean_param");
+}
+
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+function extractBearerToken(raw: string | null): string | null {
+  if (!raw) {
+    return null;
+  }
+  const match = raw.match(/^Bearer\s+(.+)$/i);
+  return trimOrNull(match?.[1]);
+}
+
 function publicAssetUrl(env: Env, bucket: unknown, key: unknown): string | null {
   if (!bucket || !key || !env.PUBLIC_BASE_URL) {
     return null;
@@ -1299,5 +1437,5 @@ function corsResponse(response: Response): Response {
 function applyCorsHeaders(headers: Headers): void {
   headers.set("access-control-allow-origin", "*");
   headers.set("access-control-allow-methods", "GET,POST,PUT,PATCH,OPTIONS");
-  headers.set("access-control-allow-headers", "content-type,authorization");
+  headers.set("access-control-allow-headers", "content-type,authorization,x-signomat-admin-token");
 }

@@ -242,7 +242,8 @@ training draft, you can turn that site export directly into a YOLO dataset with:
 ```bash
 . .venv/bin/activate
 python scripts/export_yolo_detection_dataset.py \
-  --archive-export-url "https://signomat-api.example.workers.dev/admin/training/jobs/job_x/export" \
+  --archive-export-url "https://signs.jamesburgat.com/admin/training/jobs/job_x/export" \
+  --archive-auth-token "$SIGNOMAT_ARCHIVE_TOKEN" \
   --output-dir data/training/exports/job_x \
   --image-mode copy
 ```
@@ -263,10 +264,13 @@ you can export archive crops directly into a classifier dataset with:
 ```bash
 . .venv/bin/activate
 python scripts/export_sign_classifier_dataset.py \
-  --archive-export-url "https://signomat-api.example.workers.dev/admin/training/jobs/job_x/export" \
+  --archive-export-url "https://signs.jamesburgat.com/admin/training/jobs/job_x/export" \
+  --archive-auth-token "$SIGNOMAT_ARCHIVE_TOKEN" \
   --output-dir data/training/exports/job_x_classifier
 ```
 
+Set `SIGNOMAT_ARCHIVE_TOKEN` to the same admin token used by the protected
+archive review site before running either export command.
 The archive classifier export will:
 
 - prefer stored sign crop assets when they exist
