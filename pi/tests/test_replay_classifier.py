@@ -1,8 +1,9 @@
 from pathlib import Path
 
 from signomat_pi.common.config import load_config
-from signomat_pi.inference_service.pipeline import DetectorLabelClassifier
+from signomat_pi.inference_service.pipeline import ClassificationResult, DetectorLabelClassifier
 from signomat_pi.inference_service.replay import _build_replay_classifier
+from signomat_pi.inference_service.service import determine_classification_state
 
 
 def test_replay_classifier_uses_yolo_model_when_live_classifier_backend_is_none(monkeypatch):
@@ -35,3 +36,18 @@ def test_replay_classifier_falls_back_to_detector_label_when_model_is_missing():
     classifier = _build_replay_classifier(config)
 
     assert isinstance(classifier, DetectorLabelClassifier)
+
+
+def test_determine_classification_state_leaves_detector_only_results_unclassified():
+    classifier = DetectorLabelClassifier()
+
+    assert determine_classification_state(classifier, "sign") == "unclassified"
+
+
+def test_determine_classification_state_marks_machine_and_unknown_results():
+    class StubClassifier:
+        def classify(self, *_args, **_kwargs) -> ClassificationResult:
+            return ClassificationResult("stop", 0.9)
+
+    assert determine_classification_state(StubClassifier(), "stop") == "machine_classified"
+    assert determine_classification_state(StubClassifier(), "unknown_sign") == "classification_unknown"

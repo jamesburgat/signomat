@@ -7,6 +7,12 @@ from signomat_pi.common.database import Database
 from signomat_pi.sync_service.service import CANONICAL_SYNC_BASE_URL, SyncService, normalize_sync_base_url
 
 
+def copy_pi_migrations(target_dir: Path) -> None:
+    source_dir = Path(__file__).resolve().parents[1] / "migrations"
+    for migration in source_dir.glob("*.sql"):
+        (target_dir / migration.name).write_text(migration.read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def test_normalize_sync_base_url_upgrades_legacy_workers_domain():
     assert normalize_sync_base_url("https://signomat-api.burgat-james.workers.dev") == CANONICAL_SYNC_BASE_URL
     assert normalize_sync_base_url("https://signomat-api.burgat-james.workers.dev/") == CANONICAL_SYNC_BASE_URL
@@ -22,8 +28,7 @@ def test_force_sync_batches_metadata_and_marks_queue_synced(tmp_path, monkeypatc
 
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir(parents=True, exist_ok=True)
-    source_migration = (Path(__file__).resolve().parents[1] / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
-    (migrations_dir / "0001_initial.sql").write_text(source_migration, encoding="utf-8")
+    copy_pi_migrations(migrations_dir)
 
     base_dir = tmp_path / "signomat-data"
     (base_dir / "db").mkdir(parents=True, exist_ok=True)
@@ -85,6 +90,7 @@ def test_force_sync_batches_metadata_and_marks_queue_synced(tmp_path, monkeypatc
             "video_timestamp_offset_ms": 10000,
             "dedupe_group_id": "grp_1",
             "suppressed_nearby_count": 0,
+            "classification_state": "machine_classified",
             "upload_state": "pending",
             "review_state": "unreviewed",
             "notes": None,
@@ -112,6 +118,7 @@ def test_force_sync_batches_metadata_and_marks_queue_synced(tmp_path, monkeypatc
     assert len(captured["payload"]["videoSegments"]) == 1
     assert len(captured["payload"]["detections"]) == 1
     assert captured["payload"]["detections"][0]["annotatedThumbnail"]["bucket"] == "thumbs"
+    assert captured["payload"]["detections"][0]["classificationState"] == "machine_classified"
     assert captured["payload"]["videoSegments"][0]["media"]["bucket"] == "media"
 
     status = database.upload_status()
@@ -134,8 +141,7 @@ def test_force_sync_uploads_media_assets_and_marks_detection_synced(tmp_path, mo
 
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir(parents=True, exist_ok=True)
-    source_migration = (Path(__file__).resolve().parents[1] / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
-    (migrations_dir / "0001_initial.sql").write_text(source_migration, encoding="utf-8")
+    copy_pi_migrations(migrations_dir)
 
     base_dir = tmp_path / "signomat-data"
     clean_path = base_dir / "trips" / "2026-03-30_trip_001" / "frames_clean" / "det_1.jpg"
@@ -183,6 +189,7 @@ def test_force_sync_uploads_media_assets_and_marks_detection_synced(tmp_path, mo
             "video_timestamp_offset_ms": None,
             "dedupe_group_id": "grp_1",
             "suppressed_nearby_count": 0,
+            "classification_state": "machine_classified",
             "upload_state": "pending",
             "review_state": "unreviewed",
             "notes": None,
@@ -228,8 +235,7 @@ def test_force_sync_marks_transient_media_failures_as_deferred(tmp_path, monkeyp
 
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir(parents=True, exist_ok=True)
-    source_migration = (Path(__file__).resolve().parents[1] / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
-    (migrations_dir / "0001_initial.sql").write_text(source_migration, encoding="utf-8")
+    copy_pi_migrations(migrations_dir)
 
     base_dir = tmp_path / "signomat-data"
     clean_path = base_dir / "trips" / "2026-03-30_trip_001" / "frames_clean" / "det_1.jpg"
@@ -274,6 +280,7 @@ def test_force_sync_marks_transient_media_failures_as_deferred(tmp_path, monkeyp
             "video_timestamp_offset_ms": None,
             "dedupe_group_id": "grp_1",
             "suppressed_nearby_count": 0,
+            "classification_state": "machine_classified",
             "upload_state": "pending",
             "review_state": "unreviewed",
             "notes": None,
@@ -310,8 +317,7 @@ def test_force_sync_marks_oversized_video_media_failed_and_local_only(tmp_path, 
 
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir(parents=True, exist_ok=True)
-    source_migration = (Path(__file__).resolve().parents[1] / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
-    (migrations_dir / "0001_initial.sql").write_text(source_migration, encoding="utf-8")
+    copy_pi_migrations(migrations_dir)
 
     base_dir = tmp_path / "signomat-data"
     video_path = base_dir / "trips" / "2026-03-30_trip_001" / "video" / "segment.mp4"
@@ -381,8 +387,7 @@ def test_force_sync_prioritizes_new_media_assets_before_old_video_retries(tmp_pa
 
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir(parents=True, exist_ok=True)
-    source_migration = (Path(__file__).resolve().parents[1] / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
-    (migrations_dir / "0001_initial.sql").write_text(source_migration, encoding="utf-8")
+    copy_pi_migrations(migrations_dir)
 
     base_dir = tmp_path / "signomat-data"
     old_video = base_dir / "trips" / "2026-03-30_trip_001" / "video" / "segment.mp4"
@@ -452,6 +457,7 @@ def test_force_sync_prioritizes_new_media_assets_before_old_video_retries(tmp_pa
             "video_timestamp_offset_ms": None,
             "dedupe_group_id": "grp_new",
             "suppressed_nearby_count": 0,
+            "classification_state": "machine_classified",
             "upload_state": "pending",
             "review_state": "unreviewed",
             "notes": None,
@@ -490,8 +496,7 @@ def test_force_sync_skips_video_uploads_while_any_image_assets_are_pending(tmp_p
 
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir(parents=True, exist_ok=True)
-    source_migration = (Path(__file__).resolve().parents[1] / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
-    (migrations_dir / "0001_initial.sql").write_text(source_migration, encoding="utf-8")
+    copy_pi_migrations(migrations_dir)
 
     base_dir = tmp_path / "signomat-data"
     frame_path = base_dir / "trips" / "2026-03-31_trip_001" / "frames_clean" / "det_1.jpg"
@@ -558,6 +563,7 @@ def test_force_sync_skips_video_uploads_while_any_image_assets_are_pending(tmp_p
             "video_timestamp_offset_ms": None,
             "dedupe_group_id": "grp_new",
             "suppressed_nearby_count": 0,
+            "classification_state": "machine_classified",
             "upload_state": "pending",
             "review_state": "unreviewed",
             "notes": None,
@@ -585,14 +591,287 @@ def test_force_sync_skips_video_uploads_while_any_image_assets_are_pending(tmp_p
     database.close()
 
 
+def test_force_sync_pauses_while_trip_is_active(tmp_path, monkeypatch):
+    config = load_config("pi/config/mock.yaml")
+    config.app.base_data_dir = str(tmp_path / "signomat-data")
+    config.sync.enabled = True
+    config.sync.base_url = "https://signomat-api.example.workers.dev"
+    config.sync.ingest_token = "token"
+    config.sync.device_id = "test-device"
+
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir(parents=True, exist_ok=True)
+    copy_pi_migrations(migrations_dir)
+
+    base_dir = tmp_path / "signomat-data"
+    clean_path = base_dir / "trips" / "2026-05-12_trip_001" / "frames_clean" / "det_1.jpg"
+    clean_path.parent.mkdir(parents=True, exist_ok=True)
+    clean_path.write_bytes(b"frame-bytes")
+    (base_dir / "db").mkdir(parents=True, exist_ok=True)
+
+    database = Database(base_dir / "db" / "signomat.db", migrations_dir)
+    database.apply_migrations()
+
+    trip_id = "2026-05-12_trip_001"
+    database.create_trip(trip_id, True, True)
+    database.add_detection(
+        {
+            "event_id": "det_1",
+            "trip_id": trip_id,
+            "timestamp_utc": "2026-05-12T12:00:10Z",
+            "gps_lat": 41.0,
+            "gps_lon": -71.0,
+            "gps_speed": 10.5,
+            "heading": 90.0,
+            "category_id": "sign",
+            "category_label": "sign",
+            "specific_label": None,
+            "grouping_mode": "category",
+            "raw_detector_label": "sign",
+            "raw_classifier_label": None,
+            "detector_confidence": 0.95,
+            "classifier_confidence": None,
+            "bbox_left": 10,
+            "bbox_top": 20,
+            "bbox_right": 110,
+            "bbox_bottom": 120,
+            "annotated_frame_path": None,
+            "clean_frame_path": "trips/2026-05-12_trip_001/frames_clean/det_1.jpg",
+            "sign_crop_path": None,
+            "annotated_thumbnail_path": None,
+            "clean_thumbnail_path": None,
+            "sign_crop_thumbnail_path": None,
+            "video_segment_id": None,
+            "video_timestamp_offset_ms": None,
+            "dedupe_group_id": "grp_1",
+            "suppressed_nearby_count": 0,
+            "classification_state": "unclassified",
+            "upload_state": "pending",
+            "review_state": "unreviewed",
+            "notes": None,
+        }
+    )
+    database.enqueue_upload("media_asset", "trips/2026-05-12_trip_001/frames_clean/det_1.jpg", "detections", "det_1", {"trip_id": trip_id})
+    database.enqueue_upload("detection_metadata", None, "detections", "det_1", {"trip_id": trip_id})
+
+    service = SyncService(config, database)
+
+    def fail_put_media(*, bucket: str, key: str, file_path: Path, content_type: str) -> dict:
+        raise AssertionError("media uploads should stay paused during an active trip")
+
+    def fail_post_json(path: str, payload: dict) -> dict:
+        raise AssertionError("metadata sync should stay paused during an active trip")
+
+    monkeypatch.setattr(service, "_put_media", fail_put_media)
+    monkeypatch.setattr(service, "_post_json", fail_post_json)
+
+    result = service.force_sync()
+    status = service.status()
+
+    assert result["ok"] is True
+    assert result["deferred"] is True
+    assert result["message"] == f"sync paused until trip {trip_id} ends"
+    assert status["last_result"] == "paused"
+    assert status["last_error"] is None
+    assert status["pause_reason"] == f"sync paused until trip {trip_id} ends"
+    assert status["pending"] == 2
+
+    database.close()
+
+
+def test_force_sync_uploads_after_trip_stops(tmp_path, monkeypatch):
+    config = load_config("pi/config/mock.yaml")
+    config.app.base_data_dir = str(tmp_path / "signomat-data")
+    config.sync.enabled = True
+    config.sync.base_url = "https://signomat-api.example.workers.dev"
+    config.sync.ingest_token = "token"
+    config.sync.device_id = "test-device"
+
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir(parents=True, exist_ok=True)
+    copy_pi_migrations(migrations_dir)
+
+    base_dir = tmp_path / "signomat-data"
+    clean_path = base_dir / "trips" / "2026-05-12_trip_001" / "frames_clean" / "det_1.jpg"
+    clean_path.parent.mkdir(parents=True, exist_ok=True)
+    clean_path.write_bytes(b"frame-bytes")
+    (base_dir / "db").mkdir(parents=True, exist_ok=True)
+
+    database = Database(base_dir / "db" / "signomat.db", migrations_dir)
+    database.apply_migrations()
+
+    trip_id = "2026-05-12_trip_001"
+    database.create_trip(trip_id, True, True)
+    database.add_detection(
+        {
+            "event_id": "det_1",
+            "trip_id": trip_id,
+            "timestamp_utc": "2026-05-12T12:00:10Z",
+            "gps_lat": 41.0,
+            "gps_lon": -71.0,
+            "gps_speed": 10.5,
+            "heading": 90.0,
+            "category_id": "sign",
+            "category_label": "sign",
+            "specific_label": None,
+            "grouping_mode": "category",
+            "raw_detector_label": "sign",
+            "raw_classifier_label": None,
+            "detector_confidence": 0.95,
+            "classifier_confidence": None,
+            "bbox_left": 10,
+            "bbox_top": 20,
+            "bbox_right": 110,
+            "bbox_bottom": 120,
+            "annotated_frame_path": None,
+            "clean_frame_path": "trips/2026-05-12_trip_001/frames_clean/det_1.jpg",
+            "sign_crop_path": None,
+            "annotated_thumbnail_path": None,
+            "clean_thumbnail_path": None,
+            "sign_crop_thumbnail_path": None,
+            "video_segment_id": None,
+            "video_timestamp_offset_ms": None,
+            "dedupe_group_id": "grp_1",
+            "suppressed_nearby_count": 0,
+            "classification_state": "unclassified",
+            "upload_state": "pending",
+            "review_state": "unreviewed",
+            "notes": None,
+        }
+    )
+    database.enqueue_upload("media_asset", "trips/2026-05-12_trip_001/frames_clean/det_1.jpg", "detections", "det_1", {"trip_id": trip_id})
+    database.enqueue_upload("detection_metadata", None, "detections", "det_1", {"trip_id": trip_id})
+
+    service = SyncService(config, database)
+    uploads: list[str] = []
+    posts: list[str] = []
+
+    database.stop_trip(trip_id)
+
+    def fake_put_media(*, bucket: str, key: str, file_path: Path, content_type: str) -> dict:
+        uploads.append(key)
+        assert file_path.exists()
+        return {"ok": True}
+
+    def fake_post_json(path: str, payload: dict) -> dict:
+        posts.append(path)
+        return {"ok": True, "receiptId": "receipt_after_trip"}
+
+    monkeypatch.setattr(service, "_put_media", fake_put_media)
+    monkeypatch.setattr(service, "_post_json", fake_post_json)
+
+    result = service.force_sync()
+    status = service.status()
+
+    assert result["ok"] is True
+    assert uploads == ["trips/2026-05-12_trip_001/frames_clean/det_1.jpg"]
+    assert posts == ["/ingest/batch"]
+    assert status["last_result"] == "synced"
+    assert status.get("pending", 0) == 0
+
+    database.close()
+
+
+def test_force_sync_runs_manually_while_auto_sync_is_paused(tmp_path, monkeypatch):
+    config = load_config("pi/config/mock.yaml")
+    config.app.base_data_dir = str(tmp_path / "signomat-data")
+    config.sync.enabled = True
+    config.sync.base_url = "https://signomat-api.example.workers.dev"
+    config.sync.ingest_token = "token"
+    config.sync.device_id = "test-device"
+
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir(parents=True, exist_ok=True)
+    copy_pi_migrations(migrations_dir)
+
+    base_dir = tmp_path / "signomat-data"
+    clean_path = base_dir / "trips" / "2026-05-12_trip_002" / "frames_clean" / "det_1.jpg"
+    clean_path.parent.mkdir(parents=True, exist_ok=True)
+    clean_path.write_bytes(b"frame-bytes")
+    (base_dir / "db").mkdir(parents=True, exist_ok=True)
+
+    database = Database(base_dir / "db" / "signomat.db", migrations_dir)
+    database.apply_migrations()
+
+    trip_id = "2026-05-12_trip_002"
+    database.create_trip(trip_id, True, True)
+    database.stop_trip(trip_id)
+    database.add_detection(
+        {
+            "event_id": "det_1",
+            "trip_id": trip_id,
+            "timestamp_utc": "2026-05-12T12:00:10Z",
+            "gps_lat": 41.0,
+            "gps_lon": -71.0,
+            "gps_speed": 10.5,
+            "heading": 90.0,
+            "category_id": "sign",
+            "category_label": "sign",
+            "specific_label": None,
+            "grouping_mode": "category",
+            "raw_detector_label": "sign",
+            "raw_classifier_label": None,
+            "detector_confidence": 0.95,
+            "classifier_confidence": None,
+            "bbox_left": 10,
+            "bbox_top": 20,
+            "bbox_right": 110,
+            "bbox_bottom": 120,
+            "annotated_frame_path": None,
+            "clean_frame_path": "trips/2026-05-12_trip_002/frames_clean/det_1.jpg",
+            "sign_crop_path": None,
+            "annotated_thumbnail_path": None,
+            "clean_thumbnail_path": None,
+            "sign_crop_thumbnail_path": None,
+            "video_segment_id": None,
+            "video_timestamp_offset_ms": None,
+            "dedupe_group_id": "grp_1",
+            "suppressed_nearby_count": 0,
+            "classification_state": "unclassified",
+            "upload_state": "pending",
+            "review_state": "unreviewed",
+            "notes": None,
+        }
+    )
+    database.enqueue_upload("media_asset", "trips/2026-05-12_trip_002/frames_clean/det_1.jpg", "detections", "det_1", {"trip_id": trip_id})
+    database.enqueue_upload("detection_metadata", None, "detections", "det_1", {"trip_id": trip_id})
+
+    service = SyncService(config, database)
+    uploads: list[str] = []
+    posts: list[str] = []
+
+    pause_result = service.set_auto_sync_enabled(False)
+    assert pause_result["ok"] is True
+    assert pause_result["auto_enabled"] is False
+
+    def fake_put_media(*, bucket: str, key: str, file_path: Path, content_type: str) -> dict:
+        uploads.append(key)
+        return {"ok": True}
+
+    def fake_post_json(path: str, payload: dict) -> dict:
+        posts.append(path)
+        return {"ok": True, "receiptId": "receipt_manual_sync"}
+
+    monkeypatch.setattr(service, "_put_media", fake_put_media)
+    monkeypatch.setattr(service, "_post_json", fake_post_json)
+
+    result = service.force_sync()
+
+    assert result["ok"] is True
+    assert uploads == ["trips/2026-05-12_trip_002/frames_clean/det_1.jpg"]
+    assert posts == ["/ingest/batch"]
+    assert service.status()["auto_enabled"] is False
+
+    database.close()
+
+
 def test_recover_interrupted_segments_finalizes_and_enqueues_missing_uploads(tmp_path):
     config = load_config("pi/config/mock.yaml")
     config.app.base_data_dir = str(tmp_path / "signomat-data")
 
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir(parents=True, exist_ok=True)
-    source_migration = (Path(__file__).resolve().parents[1] / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
-    (migrations_dir / "0001_initial.sql").write_text(source_migration, encoding="utf-8")
+    copy_pi_migrations(migrations_dir)
 
     base_dir = tmp_path / "signomat-data"
     trip_dir = base_dir / "trips" / "2026-03-30_trip_001" / "video"
@@ -653,8 +932,7 @@ def test_persist_detection_bundle_batches_detection_and_upload_rows(tmp_path):
 
     migrations_dir = tmp_path / "migrations"
     migrations_dir.mkdir(parents=True, exist_ok=True)
-    source_migration = (Path(__file__).resolve().parents[1] / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
-    (migrations_dir / "0001_initial.sql").write_text(source_migration, encoding="utf-8")
+    copy_pi_migrations(migrations_dir)
 
     base_dir = tmp_path / "signomat-data"
     (base_dir / "db").mkdir(parents=True, exist_ok=True)
@@ -695,6 +973,7 @@ def test_persist_detection_bundle_batches_detection_and_upload_rows(tmp_path):
             "video_timestamp_offset_ms": None,
             "dedupe_group_id": "grp_bundle",
             "suppressed_nearby_count": 0,
+            "classification_state": "machine_classified",
             "upload_state": "pending",
             "review_state": "unreviewed",
             "notes": None,

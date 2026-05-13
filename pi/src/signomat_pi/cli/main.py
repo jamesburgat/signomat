@@ -132,6 +132,10 @@ def main(argv: list[str] | None = None) -> int:
         ("stop-recording", "/recording/stop"),
         ("enable-inference", "/inference/enable"),
         ("disable-inference", "/inference/disable"),
+        ("pause-auto-sync", "/sync/auto/pause"),
+        ("resume-auto-sync", "/sync/auto/resume"),
+        ("pause-auto-classification", "/classification/auto/pause"),
+        ("resume-auto-classification", "/classification/auto/resume"),
         ("save-snapshot", "/snapshot"),
     ):
         cmd = subparsers.add_parser(name)

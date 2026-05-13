@@ -216,7 +216,7 @@ class ReplayEvaluator:
             ):
                 classified = ClassificationResult("unknown_sign", classified.confidence)
             taxonomy = self.taxonomy.map_label(classified.raw_label)
-            review_state = "machine_classified" if classified.raw_label != "unknown_sign" else "classification_unknown"
+            classification_state = "machine_classified" if classified.raw_label != "unknown_sign" else "classification_unknown"
             event_ids = [row["event_id"] for row in rows]
 
             if persist:
@@ -228,7 +228,7 @@ class ReplayEvaluator:
                     category_label=taxonomy.category_label,
                     specific_label=taxonomy.specific_label,
                     grouping_mode=taxonomy.grouping_mode,
-                    review_state=review_state,
+                    classification_state=classification_state,
                 )
                 for row in rows:
                     self.database.enqueue_upload(
@@ -255,7 +255,7 @@ class ReplayEvaluator:
                         "classifier_confidence": classified.confidence,
                         "category_label": taxonomy.category_label,
                         "specific_label": taxonomy.specific_label,
-                        "review_state": review_state,
+                        "classification_state": classification_state,
                     }
                 )
 
@@ -330,6 +330,7 @@ class PostTripClassificationManager:
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
         self._queue: list[str] = []
+        self._auto_run_enabled = True
         self._status = {
             "state": "idle",
             "running": False,
@@ -352,6 +353,10 @@ class PostTripClassificationManager:
         pending_trips = self.database.pending_post_classification_trips(limit=5)
         snapshot["pending_trips"] = pending_trips
         snapshot["pending_trip_count"] = len(pending_trips)
+        snapshot["auto_enabled"] = self._auto_run_enabled
+        if not self._auto_run_enabled and not snapshot["running"] and pending_trips:
+            snapshot["state"] = "paused"
+            snapshot["current_stage"] = "automatic post-trip classification paused"
         snapshot["launchable"] = (not snapshot["running"]) and bool(pending_trips)
         return snapshot
 
@@ -363,6 +368,32 @@ class PostTripClassificationManager:
             self._status["state"] = "queued" if self._queue else self._status["state"]
         self._ensure_thread()
         return self.status()
+
+    def set_auto_run_enabled(self, enabled: bool) -> dict:
+        self._auto_run_enabled = enabled
+        with self._lock:
+            if enabled:
+                if self._queue and not self._status["running"]:
+                    self._status["state"] = "queued"
+                    self._status["current_stage"] = "queued for classification"
+            elif not self._status["running"]:
+                self._status["state"] = "paused"
+                self._status["current_stage"] = "automatic post-trip classification paused"
+        if enabled:
+            for trip in self.database.pending_post_classification_trips(limit=10):
+                trip_id = trip["trip_id"]
+                with self._lock:
+                    if trip_id in self._queue or trip_id == self._status["current_trip_id"]:
+                        continue
+                    self._queue.append(trip_id)
+                    self._status["queued_trip_ids"] = list(self._queue)
+            self._ensure_thread()
+        return {
+            "ok": True,
+            "auto_enabled": enabled,
+            "message": "automatic post-trip classification resumed" if enabled else "automatic post-trip classification paused",
+            "status": self.status(),
+        }
 
     def launch(self, trip_id: str | None = None) -> dict:
         target_trip_id = trip_id
@@ -396,6 +427,13 @@ class PostTripClassificationManager:
                     self._status["current_trip_id"] = None
                     self._status["current_stage"] = None
                     self._status["queued_trip_ids"] = []
+                    return
+                if not self._auto_run_enabled:
+                    self._status["state"] = "paused"
+                    self._status["running"] = False
+                    self._status["current_trip_id"] = None
+                    self._status["current_stage"] = "automatic post-trip classification paused"
+                    self._status["queued_trip_ids"] = list(self._queue)
                     return
                 trip_id = self._queue.pop(0)
                 self._status["queued_trip_ids"] = list(self._queue)

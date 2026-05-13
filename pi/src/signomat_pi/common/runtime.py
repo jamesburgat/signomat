@@ -160,14 +160,22 @@ class SignomatRuntime:
         self.inference_service.flush_detection_writes()
         classification_queued = False
         if self.database.detection_count_for_trip(trip_id) > 0:
-            self.post_trip_classifier.enqueue_trip(trip_id)
-            classification_queued = True
-            self.database.add_device_event(
-                "classification.enqueue",
-                "info",
-                "post-trip classification queued",
-                {"trip_id": trip_id},
-            )
+            if self.post_trip_classifier.status().get("auto_enabled", True):
+                self.post_trip_classifier.enqueue_trip(trip_id)
+                classification_queued = True
+                self.database.add_device_event(
+                    "classification.enqueue",
+                    "info",
+                    "post-trip classification queued",
+                    {"trip_id": trip_id},
+                )
+            else:
+                self.database.add_device_event(
+                    "classification.defer",
+                    "info",
+                    "post-trip classification left pending until manually started",
+                    {"trip_id": trip_id},
+                )
         self.refresh_lcd()
         self.ble_service.refresh()
         return {
@@ -210,6 +218,41 @@ class SignomatRuntime:
         self.refresh_lcd()
         self.ble_service.refresh()
         return {"ok": True}
+
+    def pause_auto_sync(self) -> dict:
+        result = self.sync_service.set_auto_sync_enabled(False)
+        self.database.add_device_event("sync.auto_pause", "info", "automatic sync paused")
+        self.refresh_lcd()
+        self.ble_service.refresh()
+        return result
+
+    def resume_auto_sync(self) -> dict:
+        result = self.sync_service.set_auto_sync_enabled(True)
+        self.database.add_device_event("sync.auto_resume", "info", "automatic sync resumed")
+        self.refresh_lcd()
+        self.ble_service.refresh()
+        return result
+
+    def run_sync_now(self) -> dict:
+        result = self.sync_service.force_sync()
+        self.database.add_device_event("sync.manual_run", "info", "manual sync requested", {"ok": result.get("ok", False)})
+        self.refresh_lcd()
+        self.ble_service.refresh()
+        return result
+
+    def pause_auto_classification(self) -> dict:
+        result = self.post_trip_classifier.set_auto_run_enabled(False)
+        self.database.add_device_event("classification.auto_pause", "info", "automatic post-trip classification paused")
+        self.refresh_lcd()
+        self.ble_service.refresh()
+        return result
+
+    def resume_auto_classification(self) -> dict:
+        result = self.post_trip_classifier.set_auto_run_enabled(True)
+        self.database.add_device_event("classification.auto_resume", "info", "automatic post-trip classification resumed")
+        self.refresh_lcd()
+        self.ble_service.refresh()
+        return result
 
     def camera_tuning(self) -> dict:
         return {
@@ -307,6 +350,11 @@ class SignomatRuntime:
             "stop_recording": self.stop_recording,
             "enable_inference": self.enable_inference,
             "disable_inference": self.disable_inference,
+            "pause_auto_sync": self.pause_auto_sync,
+            "resume_auto_sync": self.resume_auto_sync,
+            "run_sync_now": self.run_sync_now,
+            "pause_auto_classification": self.pause_auto_classification,
+            "resume_auto_classification": self.resume_auto_classification,
             "run_post_trip_classification": self.run_post_trip_classification,
             "save_diagnostic_snapshot": self.diagnostic_snapshot,
         }
@@ -322,7 +370,10 @@ class SignomatRuntime:
         return self.post_trip_classifier.status()
 
     def run_post_trip_classification(self, trip_id: str | None = None) -> dict:
-        return self.post_trip_classifier.launch(trip_id)
+        result = self.post_trip_classifier.launch(trip_id)
+        self.refresh_lcd()
+        self.ble_service.refresh()
+        return result
 
     def temperature_c(self) -> float | None:
         path = Path("/sys/class/thermal/thermal_zone0/temp")
@@ -507,8 +558,12 @@ class SignomatRuntime:
         if classification_status.get("running"):
             trip_id = classification_status.get("current_trip_id") or "pending trip"
             return {"mode": "classifying", "detail": f"Post-trip classification running for {trip_id}"}
+        if upload["pending"] > 0 and bool(sync.get("enabled")) and not bool(sync.get("auto_enabled", True)):
+            return {"mode": "upload_paused", "detail": "Upload backlog paused until you resume sync"}
         if upload["pending"] > 0 and bool(sync.get("enabled")):
             return {"mode": "uploading", "detail": f"Uploading backlog ({upload['pending']} pending)"}
+        if classification_status.get("pending_trip_count", 0) > 0 and not bool(classification_status.get("auto_enabled", True)):
+            return {"mode": "classification_paused", "detail": "Post-trip classification backlog paused"}
         if classification_status.get("pending_trip_count", 0) > 0:
             return {"mode": "classification_ready", "detail": "Pending trips ready for post-trip classification"}
         if not self.inference_active:
@@ -544,10 +599,13 @@ class SignomatRuntime:
             "upload_queue_size": sync.get("total", 0),
             "upload_progress": upload,
             "sync_status": sync["last_result"],
+            "sync_auto_enabled": sync.get("auto_enabled", True),
+            "sync_pause_reason": sync.get("pause_reason"),
             "gps_health": self.gps_service.health,
             "pi_temperature_c": self.temperature_c(),
             "inference_health": self.inference_service.status(),
             "classification_status": classification_status,
+            "classification_auto_enabled": classification_status.get("auto_enabled", True),
             "pi_mode": pi_mode["mode"],
             "pi_mode_detail": pi_mode["detail"],
             "alerts": alerts,

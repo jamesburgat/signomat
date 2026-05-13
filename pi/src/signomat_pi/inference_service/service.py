@@ -282,6 +282,7 @@ class InferenceService:
                                     "video_timestamp_offset_ms": offset_ms,
                                     "dedupe_group_id": group_id,
                                     "suppressed_nearby_count": 0,
+                                    "classification_state": determine_classification_state(self.classifier, classified.raw_label),
                                     "upload_state": "pending",
                                     "review_state": "unreviewed",
                                     "notes": None,
@@ -307,3 +308,11 @@ class InferenceService:
             remaining = self.config.inference.interval_seconds - elapsed
             if remaining > 0:
                 time.sleep(remaining)
+
+
+def determine_classification_state(classifier, raw_label: str | None) -> str:
+    if isinstance(classifier, DetectorLabelClassifier):
+        return "unclassified"
+    if raw_label == "unknown_sign":
+        return "classification_unknown"
+    return "machine_classified"

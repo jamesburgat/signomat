@@ -23,6 +23,7 @@ class SyncService:
     def __init__(self, config, database):
         self.config = config
         self.database = database
+        self._auto_sync_enabled = True
         self.last_result = "idle"
         self.last_synced_at: str | None = None
         self.last_error: str | None = None
@@ -34,16 +35,25 @@ class SyncService:
         summary = self.database.upload_status()
         reported_result = self.last_result
         reported_error = self.last_error
-        if summary.get("pending", 0) == 0:
+        pause_message = self._sync_pause_message(summary.get("pending", 0))
+        if pause_message:
+            reported_result = "paused"
+            reported_error = None
+            summary["pause_reason"] = pause_message
+        elif summary.get("pending", 0) == 0:
             if summary.get("failed", 0) > 0:
                 reported_result = "attention"
             elif reported_result in {"error", "partial", "deferred"}:
                 reported_result = "idle"
                 reported_error = None
+        elif reported_result == "paused":
+            reported_result = "idle"
+            reported_error = None
         summary["last_result"] = reported_result
         summary["last_synced_at"] = self.last_synced_at
         summary["last_error"] = reported_error
         summary["enabled"] = self.config.sync.enabled
+        summary["auto_enabled"] = self._auto_sync_enabled
         return summary
 
     def start(self) -> None:
@@ -67,7 +77,30 @@ class SyncService:
             self.last_result = "misconfigured"
             self.last_error = "missing sync base URL or ingest token"
             return {"ok": False, "message": self.last_error}
-        return self._run_once()
+        return self._run_once(ignore_auto_pause=True)
+
+    def set_auto_sync_enabled(self, enabled: bool) -> dict:
+        self._auto_sync_enabled = enabled
+        if enabled:
+            self.last_result = "idle"
+            self.last_error = None
+            pending = self.database.upload_status().get("pending", 0)
+            if pending > 0:
+                self._run_once()
+            return {
+                "ok": True,
+                "auto_enabled": True,
+                "message": "automatic sync resumed",
+                "status": self.status(),
+            }
+        self.last_result = "paused"
+        self.last_error = None
+        return {
+            "ok": True,
+            "auto_enabled": False,
+            "message": "automatic sync paused",
+            "status": self.status(),
+        }
 
     def _sync_loop(self) -> None:
         while not self.stop_event.is_set():
@@ -81,7 +114,17 @@ class SyncService:
                 self.last_error = str(exc)
             self.stop_event.wait(self.config.sync.interval_seconds)
 
-    def _run_once(self) -> dict:
+    def _run_once(self, *, ignore_auto_pause: bool = False) -> dict:
+        pause_message = self._sync_pause_message(ignore_auto_pause=ignore_auto_pause)
+        if pause_message:
+            self.last_result = "paused"
+            self.last_error = None
+            return {
+                "ok": True,
+                "deferred": True,
+                "message": pause_message,
+                "counts": {"items": self.database.upload_status().get("pending", 0)},
+            }
         media_result = self._run_media_uploads()
         metadata_result = self._run_metadata_sync()
         total_media = media_result["counts"]["items"]
@@ -309,6 +352,17 @@ class SyncService:
     def _configured_base_url(self) -> str | None:
         return normalize_sync_base_url(self.config.sync.base_url)
 
+    def _sync_pause_message(self, pending_items: int | None = None, *, ignore_auto_pause: bool = False) -> str | None:
+        pending = self.database.upload_status().get("pending", 0) if pending_items is None else pending_items
+        if pending <= 0:
+            return None
+        if not ignore_auto_pause and not self._auto_sync_enabled:
+            return "automatic sync paused by controller"
+        active_trip = self.database.active_trip()
+        if not active_trip:
+            return None
+        return f"sync paused until trip {active_trip['trip_id']} ends"
+
     def _mark_upload_failure(self, queue_ids: list[str], retry_count: int, message: str) -> None:
         next_attempt_utc = _backoff_time_text(retry_count)
         self.database.mark_upload_items_state(
@@ -448,6 +502,7 @@ def _serialize_detection(row: dict) -> dict:
         "videoTimestampOffsetMs": row["video_timestamp_offset_ms"],
         "dedupeGroupId": row["dedupe_group_id"],
         "suppressedNearbyCount": row["suppressed_nearby_count"],
+        "classificationState": row["classification_state"],
         "reviewState": row["review_state"],
         "notes": row["notes"],
     }

@@ -14,10 +14,8 @@ const state = {
 };
 
 localStorage.setItem("signomat_api_base", state.apiBase);
-
 apiBaseInput.value = state.apiBase;
 adminTokenInput.value = state.adminToken;
-
 settingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   state.apiBase = normalizeBase(apiBaseInput.value);
@@ -419,6 +417,7 @@ async function renderReview() {
       apiFetch("/admin/training/summary", {}, { admin: true }),
     ]);
     const detections = payload.detections || [];
+    const classificationCounts = summaryPayload.classificationCounts || [];
     const metrics = summaryPayload.modelMetrics || {};
 
     app.innerHTML = `
@@ -435,6 +434,7 @@ async function renderReview() {
           <div class="stat"><span class="muted">Confirmed signs</span><strong>${metrics.confirmedSignCount || 0}</strong></div>
           <div class="stat"><span class="muted">False positives</span><strong>${metrics.falsePositiveCount || 0}</strong></div>
           <div class="stat"><span class="muted">Precision estimate</span><strong>${metrics.reviewedPrecisionEstimate != null ? `${Math.round(metrics.reviewedPrecisionEstimate * 100)}%` : "n/a"}</strong></div>
+          ${classificationCounts.map((item) => `<div class="stat"><span class="muted">${escapeHtml(formatClassificationStatus(item.classificationState))}</span><strong>${item.count}</strong></div>`).join("")}
         </div>
         <div id="review-status" class="status-line">Review queue loaded from ${escapeHtml(state.apiBase)}</div>
       </section>
@@ -447,6 +447,7 @@ async function renderReview() {
     `;
 
     attachReviewHandlers();
+    mountReviewCropPreviews();
   } catch (error) {
     app.innerHTML = renderAdminLocked(error.message);
   }
@@ -781,6 +782,7 @@ function renderDetectionCard(detection, options = {}) {
           <div>
             <div class="pill-row">
               <span class="pill ${escapeAttribute(detection.reviewState)}">${escapeHtml(formatReviewState(detection.reviewState))}</span>
+              <span class="pill ${escapeAttribute(detection.classificationStatus || "unclassified")}">${escapeHtml(formatClassificationStatus(detection.classificationStatus))}</span>
               <span class="pill">${escapeHtml(detection.categoryLabel || "unknown")}</span>
             </div>
             <h3>${escapeHtml(detection.specificLabel || detection.categoryLabel || detection.eventId)}</h3>
@@ -839,17 +841,17 @@ function renderVideoSegmentCard(segment) {
 }
 
 function renderReviewCard(detection) {
-  const thumb = bestThumbnail(detection) || detection.cleanFrameUrl || detection.annotatedFrameUrl || detection.signCropUrl;
   return `
     <article class="review-card" data-review-card="${escapeAttribute(detection.eventId)}">
       <div class="card-media">
-        ${thumb ? `<img src="${escapeAttribute(thumb)}" alt="${escapeAttribute(detection.categoryLabel || "review image")}" loading="lazy" />` : `<div class="empty-state compact">No image</div>`}
+        ${renderReviewPreview(detection)}
       </div>
       <div class="section-stack">
         <div class="panel-head">
           <div>
             <div class="pill-row">
               <span class="pill ${escapeAttribute(detection.reviewState)}">${escapeHtml(formatReviewState(detection.reviewState))}</span>
+              <span class="pill ${escapeAttribute(detection.classificationStatus || "unclassified")}">${escapeHtml(formatClassificationStatus(detection.classificationStatus))}</span>
               <span class="pill">${escapeHtml(detection.tripId)}</span>
             </div>
             <h3>${escapeHtml(detection.specificLabel || detection.categoryLabel || detection.eventId)}</h3>
@@ -884,6 +886,42 @@ function renderReviewCard(detection) {
       </div>
     </article>
   `;
+}
+
+function renderReviewPreview(detection) {
+  if (detection.signCropThumbnailUrl || detection.signCropUrl) {
+    const cropUrl = detection.signCropThumbnailUrl || detection.signCropUrl;
+    return `<img src="${escapeAttribute(cropUrl)}" alt="${escapeAttribute(detection.categoryLabel || "review crop")}" loading="lazy" />`;
+  }
+
+  if (
+    detection.cleanFrameUrl &&
+    Number.isFinite(detection.bboxLeft) &&
+    Number.isFinite(detection.bboxTop) &&
+    Number.isFinite(detection.bboxRight) &&
+    Number.isFinite(detection.bboxBottom)
+  ) {
+    const fallbackUrl = bestThumbnail(detection) || detection.cleanFrameUrl || detection.annotatedFrameUrl || "";
+    return `
+      <div
+        class="crop-preview-frame"
+        data-crop-preview="${escapeAttribute(detection.eventId)}"
+        data-source-url="${escapeAttribute(detection.cleanFrameUrl)}"
+        data-fallback-url="${escapeAttribute(fallbackUrl)}"
+        data-bbox-left="${escapeAttribute(detection.bboxLeft)}"
+        data-bbox-top="${escapeAttribute(detection.bboxTop)}"
+        data-bbox-right="${escapeAttribute(detection.bboxRight)}"
+        data-bbox-bottom="${escapeAttribute(detection.bboxBottom)}"
+      >
+        <div class="empty-state compact">Loading crop</div>
+      </div>
+    `;
+  }
+
+  const fallback = bestThumbnail(detection) || detection.cleanFrameUrl || detection.annotatedFrameUrl;
+  return fallback
+    ? `<img src="${escapeAttribute(fallback)}" alt="${escapeAttribute(detection.categoryLabel || "review image")}" loading="lazy" />`
+    : `<div class="empty-state compact">No image</div>`;
 }
 
 function renderTrainingJobCard(job) {
@@ -1324,6 +1362,92 @@ function formatReviewState(value) {
     return "Unreviewed";
   }
   return "Reviewed";
+}
+
+function formatClassificationStatus(value) {
+  if (value === "machine_classified") {
+    return "Machine classified";
+  }
+  if (value === "classification_unknown") {
+    return "Classification unknown";
+  }
+  return "Needs classification";
+}
+
+function mountReviewCropPreviews() {
+  document.querySelectorAll("[data-crop-preview]").forEach((node) => {
+    loadReviewCropPreview(node).catch(() => {
+      renderReviewCropFallback(node);
+    });
+  });
+}
+
+async function loadReviewCropPreview(node) {
+  if (!(node instanceof HTMLElement) || node.dataset.loaded === "true") {
+    return;
+  }
+  node.dataset.loaded = "true";
+
+  const sourceUrl = node.dataset.sourceUrl;
+  if (!sourceUrl) {
+    renderReviewCropFallback(node);
+    return;
+  }
+
+  const bboxLeft = Number(node.dataset.bboxLeft);
+  const bboxTop = Number(node.dataset.bboxTop);
+  const bboxRight = Number(node.dataset.bboxRight);
+  const bboxBottom = Number(node.dataset.bboxBottom);
+  if (![bboxLeft, bboxTop, bboxRight, bboxBottom].every(Number.isFinite)) {
+    renderReviewCropFallback(node);
+    return;
+  }
+
+  const image = new Image();
+  image.decoding = "async";
+  image.src = sourceUrl;
+  await image.decode();
+
+  const width = image.naturalWidth;
+  const height = image.naturalHeight;
+  if (!width || !height) {
+    renderReviewCropFallback(node);
+    return;
+  }
+
+  const boxWidth = Math.max(1, bboxRight - bboxLeft);
+  const boxHeight = Math.max(1, bboxBottom - bboxTop);
+  const padX = Math.max(12, boxWidth * 0.35);
+  const padY = Math.max(12, boxHeight * 0.35);
+  const sourceX = Math.max(0, Math.floor(bboxLeft - padX));
+  const sourceY = Math.max(0, Math.floor(bboxTop - padY));
+  const sourceWidth = Math.min(width - sourceX, Math.ceil(boxWidth + padX * 2));
+  const sourceHeight = Math.min(height - sourceY, Math.ceil(boxHeight + padY * 2));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 180;
+  canvas.height = 132;
+  canvas.className = "review-crop-canvas";
+  const context = canvas.getContext("2d");
+  if (!context) {
+    renderReviewCropFallback(node);
+    return;
+  }
+  context.imageSmoothingEnabled = true;
+  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+  node.replaceChildren(canvas);
+}
+
+function renderReviewCropFallback(node) {
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  const fallbackUrl = node.dataset.fallbackUrl;
+  if (!fallbackUrl) {
+    node.innerHTML = `<div class="empty-state compact">No image</div>`;
+    return;
+  }
+  node.innerHTML = `<img src="${escapeAttribute(fallbackUrl)}" alt="Review fallback" loading="lazy" />`;
 }
 
 function escapeHtml(value) {

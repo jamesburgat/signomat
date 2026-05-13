@@ -23,6 +23,8 @@ struct DeviceStatusPayload: Codable {
     var alert: StatusAlertPayload?
     var mode: String?
     var modeDetail: String?
+    var syncAutoEnabled: Bool?
+    var syncPauseReason: String?
     var classState: String?
     var classRunning: Bool?
     var classTripID: String?
@@ -33,6 +35,7 @@ struct DeviceStatusPayload: Codable {
     var classPending: Int?
     var classQueue: Int?
     var classLaunchable: Bool?
+    var classAutoEnabled: Bool?
     var classLastCompletedTripID: String?
     var classLastCompletedAt: String?
     var classLastError: String?
@@ -47,6 +50,8 @@ struct DeviceStatusPayload: Codable {
         case alert
         case mode
         case modeDetail = "mode_detail"
+        case syncAutoEnabled = "sync_auto_enabled"
+        case syncPauseReason = "sync_pause_reason"
         case classState = "class_state"
         case classRunning = "class_running"
         case classTripID = "class_trip_id"
@@ -57,6 +62,7 @@ struct DeviceStatusPayload: Codable {
         case classPending = "class_pending"
         case classQueue = "class_queue"
         case classLaunchable = "class_launchable"
+        case classAutoEnabled = "class_auto_enabled"
         case classLastCompletedTripID = "class_last_completed_trip_id"
         case classLastCompletedAt = "class_last_completed_at"
         case classLastError = "class_last_error"
@@ -199,6 +205,8 @@ struct LiveStatus {
     var alert: StatusAlertPayload?
     var mode = "ready"
     var modeDetail: String?
+    var syncAutoEnabled = true
+    var syncPauseReason: String?
     var classState: String?
     var classRunning = false
     var classTripID: String?
@@ -209,6 +217,7 @@ struct LiveStatus {
     var classPending = 0
     var classQueue = 0
     var classLaunchable = false
+    var classAutoEnabled = true
     var classLastCompletedTripID: String?
     var classLastCompletedAt: String?
     var classLastError: String?
@@ -230,6 +239,8 @@ struct LiveStatus {
         alert = payload.alert
         mode = payload.mode ?? mode
         modeDetail = payload.modeDetail
+        syncAutoEnabled = payload.syncAutoEnabled ?? syncAutoEnabled
+        syncPauseReason = payload.syncPauseReason
         classState = payload.classState
         classRunning = payload.classRunning ?? classRunning
         classTripID = payload.classTripID
@@ -240,6 +251,7 @@ struct LiveStatus {
         classPending = payload.classPending ?? classPending
         classQueue = payload.classQueue ?? classQueue
         classLaunchable = payload.classLaunchable ?? classLaunchable
+        classAutoEnabled = payload.classAutoEnabled ?? classAutoEnabled
         classLastCompletedTripID = payload.classLastCompletedTripID
         classLastCompletedAt = payload.classLastCompletedAt
         classLastError = payload.classLastError
@@ -307,6 +319,11 @@ enum SignomatCommand: String, CaseIterable, Identifiable {
     case stopRecording = "stop_recording"
     case enableInference = "enable_inference"
     case disableInference = "disable_inference"
+    case pauseAutoSync = "pause_auto_sync"
+    case resumeAutoSync = "resume_auto_sync"
+    case runSyncNow = "run_sync_now"
+    case pauseAutoClassification = "pause_auto_classification"
+    case resumeAutoClassification = "resume_auto_classification"
     case runPostTripClassification = "run_post_trip_classification"
     case saveDiagnosticSnapshot = "save_diagnostic_snapshot"
 
@@ -320,6 +337,11 @@ enum SignomatCommand: String, CaseIterable, Identifiable {
         case .stopRecording: return "Stop Recording"
         case .enableInference: return "Enable Inference"
         case .disableInference: return "Disable Inference"
+        case .pauseAutoSync: return "Pause Auto Sync"
+        case .resumeAutoSync: return "Resume Auto Sync"
+        case .runSyncNow: return "Sync Now"
+        case .pauseAutoClassification: return "Pause Auto Classification"
+        case .resumeAutoClassification: return "Resume Auto Classification"
         case .runPostTripClassification: return "Run Classification"
         case .saveDiagnosticSnapshot: return "Save Diagnostic Snapshot"
         }

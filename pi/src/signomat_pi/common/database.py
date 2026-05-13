@@ -569,7 +569,7 @@ class Database:
             FROM trips t
             JOIN detections d ON d.trip_id = t.trip_id
             WHERE t.status != 'active'
-              AND d.review_state = 'unreviewed'
+              AND COALESCE(d.classification_state, 'unclassified') = 'unclassified'
             GROUP BY t.trip_id, t.status, t.started_at_utc
             ORDER BY t.started_at_utc DESC
             LIMIT ?
@@ -588,7 +588,7 @@ class Database:
         category_label: str,
         specific_label: str | None,
         grouping_mode: str,
-        review_state: str,
+        classification_state: str,
     ) -> None:
         if not event_ids:
             return
@@ -602,7 +602,7 @@ class Database:
                 category_label=?,
                 specific_label=?,
                 grouping_mode=?,
-                review_state=?
+                classification_state=?
             WHERE event_id IN ({placeholders})
             """,
             (
@@ -612,7 +612,7 @@ class Database:
                 category_label,
                 specific_label,
                 grouping_mode,
-                review_state,
+                classification_state,
                 *event_ids,
             ),
         )

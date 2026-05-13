@@ -28,6 +28,8 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
         payload = _endpoint(app, "/status")()
         assert payload["trip_active"] is True
         assert payload["detection_count_trip"] >= 1
+        assert payload["sync_auto_enabled"] is True
+        assert payload["classification_auto_enabled"] is True
 
         ble = _endpoint(app, "/ble/payloads")()
         assert "7b1e1001-5d1f-4aa0-9a7d-6f5c0b6c1000" in ble
@@ -119,5 +121,26 @@ def test_mock_runtime_emits_status_and_detections(tmp_path):
 
         run_again = _endpoint(app, "/classification/run", "POST")()
         assert run_again["ok"] in {True, False}
+
+        sync_pause = _endpoint(app, "/sync/auto/pause", "POST")()
+        assert sync_pause["auto_enabled"] is False
+        sync_resume = _endpoint(app, "/sync/auto/resume", "POST")()
+        assert sync_resume["auto_enabled"] is True
+
+        class_pause = _endpoint(app, "/classification/auto/pause", "POST")()
+        assert class_pause["auto_enabled"] is False
+
+        trip_id = _endpoint(app, "/session/start", "POST")()["trip_id"]
+        assert trip_id
+        time.sleep(2.5)
+        stop_payload = _endpoint(app, "/session/stop", "POST")()
+        assert stop_payload["trip_id"] == trip_id
+        assert stop_payload["classification_queued"] is False
+
+        paused_status = _endpoint(app, "/classification/status")()
+        assert paused_status["auto_enabled"] is False
+
+        class_resume = _endpoint(app, "/classification/auto/resume", "POST")()
+        assert class_resume["auto_enabled"] is True
     finally:
         runtime.stop()

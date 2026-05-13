@@ -35,6 +35,7 @@ export type DetectionRecord = {
   videoTimestampOffsetMs?: number | null;
   dedupeGroupId?: string | null;
   suppressedNearbyCount?: number | null;
+  classificationState?: "unclassified" | "classification_unknown" | "machine_classified";
   reviewState?: "unreviewed" | "reviewed" | "false_positive";
   notes?: string | null;
 };

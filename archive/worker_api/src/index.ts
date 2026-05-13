@@ -29,6 +29,7 @@ type RouteContext = {
 
 type DetectionRow = Record<string, unknown>;
 type ReviewState = "unreviewed" | "reviewed" | "false_positive";
+type ClassificationState = "unclassified" | "classification_unknown" | "machine_classified";
 type TrainingJobRow = Record<string, unknown>;
 
 const REVIEW_STATES = new Set<ReviewState>(["unreviewed", "reviewed", "false_positive"]);
@@ -583,11 +584,19 @@ async function handleAdminReviewQueue(ctx: RouteContext): Promise<Response> {
        clean_thumb_key,
        sign_crop_thumb_bucket,
        sign_crop_thumb_key,
+       classification_state,
        review_state,
        notes
      FROM detections
      ${where}
-     ORDER BY timestamp_utc DESC
+     ORDER BY
+       CASE COALESCE(classification_state, 'unclassified')
+         WHEN 'unclassified' THEN 0
+         WHEN 'classification_unknown' THEN 1
+         WHEN 'machine_classified' THEN 2
+         ELSE 3
+       END ASC,
+       timestamp_utc DESC
      LIMIT ?`
   )
     .bind(...bindings, limit)
@@ -649,6 +658,13 @@ async function handleAdminTrainingSummary(ctx: RouteContext): Promise<Response> 
      ORDER BY review_state ASC`
   ).all<Record<string, unknown>>();
 
+  const classificationCounts = await ctx.env.ARCHIVE_DB.prepare(
+    `SELECT classification_state, COUNT(*) AS count
+     FROM detections
+     GROUP BY classification_state
+     ORDER BY classification_state ASC`
+  ).all<Record<string, unknown>>();
+
   const precisionRow = await ctx.env.ARCHIVE_DB.prepare(
     `SELECT
        SUM(CASE WHEN review_state = 'reviewed' THEN 1 ELSE 0 END) AS confirmed_sign_count,
@@ -686,6 +702,10 @@ async function handleAdminTrainingSummary(ctx: RouteContext): Promise<Response> 
     ok: true,
     reviewCounts: (reviewCounts.results ?? []).map((row) => ({
       reviewState: row.review_state,
+      count: asNumber(row.count, 0),
+    })),
+    classificationCounts: (classificationCounts.results ?? []).map((row) => ({
+      classificationState: asClassificationState(row.classification_state, null, null),
       count: asNumber(row.count, 0),
     })),
     modelMetrics: {
@@ -899,6 +919,7 @@ function serializeDetectionCard(env: Env, row: DetectionRow): JsonObject {
     annotatedThumbnailUrl: publicAssetUrl(env, row.annotated_thumb_bucket, row.annotated_thumb_key),
     cleanThumbnailUrl: publicAssetUrl(env, row.clean_thumb_bucket, row.clean_thumb_key),
     signCropThumbnailUrl: publicAssetUrl(env, row.sign_crop_thumb_bucket, row.sign_crop_thumb_key),
+    classificationStatus: asClassificationState(row.classification_state, row.raw_classifier_label, row.category_label),
     reviewState: asReviewState(row.review_state),
     notes: asNullableString(row.notes),
   };
@@ -1145,7 +1166,7 @@ function buildDetectionStatements(db: D1Database, detections: DetectionRecord[],
          annotated_thumb_bucket, annotated_thumb_key,
          clean_thumb_bucket, clean_thumb_key,
          sign_crop_thumb_bucket, sign_crop_thumb_key,
-         video_segment_id, video_timestamp_offset_ms, dedupe_group_id, suppressed_nearby_count, review_state, notes, updated_at_utc
+         video_segment_id, video_timestamp_offset_ms, dedupe_group_id, suppressed_nearby_count, classification_state, review_state, notes, updated_at_utc
        ) VALUES (
          ?1, ?2, ?3, ?4, ?5, ?6, ?7,
          ?8, ?9, ?10, ?11,
@@ -1157,7 +1178,7 @@ function buildDetectionStatements(db: D1Database, detections: DetectionRecord[],
          ?26, ?27,
          ?28, ?29,
          ?30, ?31,
-         ?32, ?33, ?34, ?35, ?36, ?37, ?38
+         ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39
        )
        ON CONFLICT(event_id) DO UPDATE SET
          trip_id=excluded.trip_id,
@@ -1194,6 +1215,7 @@ function buildDetectionStatements(db: D1Database, detections: DetectionRecord[],
          video_timestamp_offset_ms=excluded.video_timestamp_offset_ms,
          dedupe_group_id=excluded.dedupe_group_id,
          suppressed_nearby_count=excluded.suppressed_nearby_count,
+         classification_state=excluded.classification_state,
          review_state=excluded.review_state,
          notes=excluded.notes,
          updated_at_utc=excluded.updated_at_utc`
@@ -1233,6 +1255,7 @@ function buildDetectionStatements(db: D1Database, detections: DetectionRecord[],
       detection.videoTimestampOffsetMs ?? null,
       detection.dedupeGroupId ?? null,
       detection.suppressedNearbyCount ?? 0,
+      detection.classificationState ?? "unclassified",
       detection.reviewState ?? "unreviewed",
       detection.notes ?? null,
       now,
@@ -1288,6 +1311,30 @@ function asNullableNumber(value: unknown): number | null {
 
 function asReviewState(value: unknown): ReviewState {
   return typeof value === "string" && REVIEW_STATES.has(value as ReviewState) ? (value as ReviewState) : "unreviewed";
+}
+
+function asClassificationState(
+  value: unknown,
+  rawClassifierLabel: unknown,
+  categoryLabel: unknown,
+): ClassificationState {
+  if (
+    value === "unclassified" ||
+    value === "classification_unknown" ||
+    value === "machine_classified"
+  ) {
+    return value;
+  }
+
+  const rawLabel = asNullableString(rawClassifierLabel);
+  const category = asNullableString(categoryLabel);
+  if (!rawLabel) {
+    return "unclassified";
+  }
+  if (rawLabel === "unknown_sign" || category === "unknown_sign") {
+    return "classification_unknown";
+  }
+  return "machine_classified";
 }
 
 function trimOrNull(value: string | null | undefined): string | null {

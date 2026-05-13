@@ -33,6 +33,7 @@ struct ControlDashboardView: View {
     private let tripCommands: [SignomatCommand] = [.startTrip, .stopTrip, .saveDiagnosticSnapshot]
     private let recordingCommands: [SignomatCommand] = [.startRecording, .stopRecording]
     private let inferenceCommands: [SignomatCommand] = [.enableInference, .disableInference]
+    private let syncCommands: [SignomatCommand] = [.runSyncNow]
     private let classificationCommands: [SignomatCommand] = [.runPostTripClassification]
 
     var body: some View {
@@ -45,6 +46,7 @@ struct ControlDashboardView: View {
                     statusCard
                     mapCard
                     categoryCard
+                    automationCard
                     commandCard
                 }
                 .padding(20)
@@ -205,6 +207,8 @@ struct ControlDashboardView: View {
             statusRow("Pi Mode", displayMode(status.mode))
             statusRow("Mode Detail", status.modeDetail ?? "None")
             statusRow("Inference", status.inf ? "Enabled" : "Disabled")
+            statusRow("Auto Sync", status.syncAutoEnabled ? "Enabled" : "Paused")
+            statusRow("Auto Classification", status.classAutoEnabled ? "Enabled" : "Paused")
             statusRow("Classification", classificationStatusText(status))
             activityProgressSection(status)
             storageUsagePanel(status)
@@ -370,16 +374,65 @@ struct ControlDashboardView: View {
                     commandButton(command)
                 }
             }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
 
-            Text("Post-Trip Classification")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-            Text("Launch pending post-trip classification over BLE and watch progress from the live status stream.")
+    private var automationCard: some View {
+        let status = viewModel.manager.status
+
+        return VStack(alignment: .leading, spacing: 16) {
+            Text("Post-Trip Work")
+                .font(.headline)
+            Text("Choose whether the Pi should process backlog on its own, or wait for you to kick off uploads and classification manually.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            LazyVGrid(columns: commandGrid, spacing: 12) {
-                ForEach(classificationCommands) { command in
-                    commandButton(command)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Upload Controls")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(syncAutomationSummary(status))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                if let pauseReason = status.syncPauseReason, !pauseReason.isEmpty {
+                    Text(pauseReason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                LazyVGrid(columns: commandGrid, spacing: 12) {
+                    if status.syncAutoEnabled {
+                        commandButton(.pauseAutoSync)
+                    } else {
+                        commandButton(.resumeAutoSync)
+                    }
+                    ForEach(syncCommands) { command in
+                        commandButton(command)
+                    }
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Classification Controls")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(classificationAutomationSummary(status))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                LazyVGrid(columns: commandGrid, spacing: 12) {
+                    if status.classAutoEnabled {
+                        commandButton(.pauseAutoClassification)
+                    } else {
+                        commandButton(.resumeAutoClassification)
+                    }
+                    ForEach(classificationCommands) { command in
+                        commandButton(command)
+                    }
                 }
             }
         }
@@ -425,8 +478,25 @@ struct ControlDashboardView: View {
 
     private func commandAvailable(_ command: SignomatCommand) -> Bool {
         guard viewModel.manager.isConnected else { return false }
+        if command == .runSyncNow {
+            return !viewModel.manager.status.trip
+        }
+        if command == .pauseAutoSync {
+            return viewModel.manager.status.syncAutoEnabled
+        }
+        if command == .resumeAutoSync {
+            return !viewModel.manager.status.syncAutoEnabled
+        }
+        if command == .pauseAutoClassification {
+            return viewModel.manager.status.classAutoEnabled
+        }
+        if command == .resumeAutoClassification {
+            return !viewModel.manager.status.classAutoEnabled
+        }
         if command == .runPostTripClassification {
-            return !viewModel.manager.status.classRunning && viewModel.manager.status.classLaunchable
+            return !viewModel.manager.status.trip &&
+                !viewModel.manager.status.classRunning &&
+                viewModel.manager.status.classLaunchable
         }
         return true
     }
@@ -629,6 +699,9 @@ struct ControlDashboardView: View {
             return "\(displayMode(state)) (\(trip))"
         }
         if status.classPending > 0 {
+            if !status.classAutoEnabled {
+                return "Paused with backlog"
+            }
             return status.classLaunchable ? "Ready to run" : "Queued"
         }
         return "Idle"
@@ -657,6 +730,9 @@ struct ControlDashboardView: View {
             return "Preparing classification for \(tripID)"
         }
         if status.classPending > 0 {
+            if !status.classAutoEnabled {
+                return "\(status.classPending) trip(s) waiting for manual classification"
+            }
             return status.classLaunchable
                 ? "\(status.classPending) trip(s) ready to classify"
                 : "\(status.classPending) trip(s) queued"
@@ -676,6 +752,7 @@ struct ControlDashboardView: View {
         if let state = status.classState, !state.isEmpty {
             rows.append(("State", displayMode(state)))
         }
+        rows.append(("Auto Run", status.classAutoEnabled ? "Enabled" : "Paused"))
         if let tripID = status.classTripID, !tripID.isEmpty {
             rows.append(("Active Trip", tripID))
         }
@@ -700,6 +777,9 @@ struct ControlDashboardView: View {
 
     private func uploadProgressText(_ status: LiveStatus) -> String {
         if status.uploadPending > 0 {
+            if !status.syncAutoEnabled {
+                return "\(status.uploadPending) paused"
+            }
             return "\(status.uploadPending) pending (\(status.uploadPct)%)"
         }
         if status.uploadTotal <= 0 {
@@ -709,10 +789,45 @@ struct ControlDashboardView: View {
     }
 
     private func uploadDetailText(_ status: LiveStatus) -> String {
+        if !status.syncAutoEnabled && status.uploadPending > 0 {
+            return "Backlog held until you resume sync or run Sync Now"
+        }
         if status.uploadPending > 0 || status.uploadTotal > 0 {
             return "\(status.uploadSynced) synced of \(status.uploadTotal) total"
         }
         return "No uploads pending"
+    }
+
+    private func syncAutomationSummary(_ status: LiveStatus) -> String {
+        if status.syncAutoEnabled {
+            if status.trip {
+                return "Automatic sync is on, but drive-time uploads stay paused until the trip ends."
+            }
+            if status.uploadPending > 0 {
+                return "Automatic sync is on and will drain the backlog whenever the Pi is idle."
+            }
+            return "Automatic sync is on. New uploads will flush after each trip."
+        }
+        if status.uploadPending > 0 {
+            return "Automatic sync is paused. The backlog will wait until you resume it or tap Sync Now."
+        }
+        return "Automatic sync is paused. Future uploads will wait for manual approval."
+    }
+
+    private func classificationAutomationSummary(_ status: LiveStatus) -> String {
+        if status.classAutoEnabled {
+            if status.classRunning {
+                return "Automatic post-trip classification is on and currently working through the backlog."
+            }
+            if status.classPending > 0 {
+                return "Automatic post-trip classification is on and will pick up pending trips when the Pi is idle."
+            }
+            return "Automatic post-trip classification is on."
+        }
+        if status.classPending > 0 {
+            return "Automatic post-trip classification is paused. Pending trips will wait until you resume it or run classification manually."
+        }
+        return "Automatic post-trip classification is paused."
     }
 
     private func uploadProgressFraction(_ status: LiveStatus) -> Double {

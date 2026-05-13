@@ -1,25 +1,25 @@
 :root {
-  --bg: #efe7d7;
-  --bg-deep: #e3d6bd;
-  --panel: rgba(255, 250, 241, 0.9);
-  --panel-strong: #fff8ef;
-  --ink: #1e1a16;
-  --muted: #6f6559;
-  --line: rgba(136, 114, 82, 0.22);
-  --accent: #0d6c63;
-  --accent-soft: #d8eee8;
-  --rust: #c46a3d;
-  --rust-soft: #f3ddd1;
-  --sun: #8f7a3f;
-  --sun-soft: #ece2b9;
-  --danger: #8c2f2f;
-  --shadow: 0 22px 50px rgba(43, 30, 17, 0.12);
-  --radius: 26px;
-  --radius-sm: 18px;
-  --radius-xs: 14px;
-  --sans: "Instrument Sans", "Segoe UI", sans-serif;
-  --serif: "Fraunces", Georgia, serif;
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --bg: #ddd6c7;
+  --bg-deep: #cbc2b1;
+  --panel: rgba(245, 241, 232, 0.96);
+  --panel-strong: #f7f3ea;
+  --ink: #191714;
+  --muted: #665f54;
+  --line: rgba(67, 58, 46, 0.28);
+  --accent: #255f57;
+  --accent-soft: #dce7df;
+  --rust: #9f5d34;
+  --rust-soft: #ead7cb;
+  --sun: #6f6530;
+  --sun-soft: #e3ddba;
+  --danger: #7c2e2e;
+  --shadow: none;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-xs: 4px;
+  --sans: "IBM Plex Mono", "Courier New", monospace;
+  --serif: "Newsreader", Georgia, serif;
+  --mono: "IBM Plex Mono", "Courier New", monospace;
 }
 
 * {
@@ -36,9 +36,30 @@ body {
   font-family: var(--sans);
   color: var(--ink);
   background:
-    radial-gradient(circle at top left, rgba(13, 108, 99, 0.14), transparent 28%),
-    radial-gradient(circle at 85% 0%, rgba(196, 106, 61, 0.12), transparent 24%),
-    linear-gradient(180deg, #f5efe2 0%, var(--bg) 54%, var(--bg-deep) 100%);
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.03) 0,
+      rgba(0, 0, 0, 0.03) 1px,
+      transparent 1px,
+      transparent 32px
+    ),
+    linear-gradient(180deg, #e4ddcf 0%, var(--bg) 48%, var(--bg-deep) 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.08) 0,
+      rgba(0, 0, 0, 0.08) 1px,
+      transparent 1px,
+      transparent 18px
+    );
 }
 
 a {
@@ -56,7 +77,7 @@ button,
 .button {
   appearance: none;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-xs);
   background: var(--panel-strong);
   color: var(--ink);
   cursor: pointer;
@@ -67,21 +88,22 @@ button,
   min-height: 44px;
   padding: 0 16px;
   text-decoration: none;
-  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: background 140ms ease, border-color 140ms ease;
 }
 
 button:hover,
 .button:hover {
-  transform: translateY(-1px);
-  background: #fff4e5;
-  border-color: rgba(136, 114, 82, 0.36);
+  background: #ebe4d6;
+  border-color: rgba(67, 58, 46, 0.42);
 }
 
 .button.primary,
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: #f5f1ea;
 }
 
 .button.ghost,
@@ -90,20 +112,20 @@ button.ghost {
 }
 
 .site-shell {
-  max-width: 1480px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 28px;
+  padding: 18px;
 }
 
 .topbar {
   display: grid;
-  gap: 18px;
-  margin-bottom: 22px;
-  padding: 22px 24px;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px 18px;
 }
 
 .panel {
-  background: linear-gradient(180deg, rgba(255, 250, 241, 0.94), rgba(248, 240, 225, 0.88));
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -124,10 +146,11 @@ button.ghost {
 
 .brand-copy h1 {
   margin: 0;
-  font-family: var(--serif);
-  font-size: clamp(2.7rem, 5vw, 4.8rem);
-  line-height: 0.92;
-  letter-spacing: -0.06em;
+  font-family: var(--sans);
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  line-height: 0.96;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
 }
 
 .brand-copy p:last-child {
@@ -139,8 +162,8 @@ button.ghost {
   margin: 0 0 6px;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  font-size: 0.73rem;
 }
 
 .nav {
@@ -150,11 +173,13 @@ button.ghost {
 }
 
 .nav a {
-  padding: 11px 16px;
-  border-radius: 999px;
+  padding: 10px 14px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.52);
+  background: rgba(255, 255, 255, 0.3);
   text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .nav a[aria-current="true"] {
@@ -166,7 +191,7 @@ button.ghost {
 .settings-panel {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.28);
   overflow: hidden;
 }
 
@@ -186,7 +211,7 @@ button.ghost {
 
 .settings-body {
   border-top: 1px solid var(--line);
-  padding: 16px;
+  padding: 14px;
   display: grid;
   gap: 12px;
 }
@@ -229,8 +254,8 @@ textarea {
   width: 100%;
   min-height: 46px;
   border: 1px solid var(--line);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.55);
   color: var(--ink);
   padding: 11px 14px;
 }
@@ -247,8 +272,8 @@ textarea {
   padding: 0 14px;
   min-height: 46px;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.65);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.48);
 }
 
 .checkbox-chip input {
@@ -259,7 +284,7 @@ textarea {
 .archive-grid,
 .detail-grid {
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 .archive-grid {
@@ -273,7 +298,7 @@ textarea {
 .section-stack,
 .list-stack {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .section-stack.tight {
@@ -283,7 +308,7 @@ textarea {
 .hero-panel,
 .loading-panel,
 .locked-panel {
-  padding: 22px;
+  padding: 16px;
 }
 
 .hero-note {
@@ -297,7 +322,7 @@ textarea {
 .trip-list,
 .detection-grid {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .stats-grid {
@@ -326,7 +351,7 @@ textarea {
 .review-card {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.44);
 }
 
 .stat,
@@ -336,16 +361,16 @@ textarea {
 .trip-card,
 .detection-card,
 .review-card {
-  padding: 16px;
+  padding: 14px;
 }
 
 .stat strong,
 .meta-card strong {
   display: block;
   margin-top: 8px;
-  font-size: 1.55rem;
+  font-size: 1.4rem;
   line-height: 1.05;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.03em;
 }
 
 .muted,
@@ -390,7 +415,7 @@ textarea {
 
 .leaflet-frame {
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line);
 }
 
@@ -404,13 +429,14 @@ textarea {
 
 .leaflet-container {
   font-family: var(--sans);
-  background: linear-gradient(180deg, rgba(239, 247, 244, 0.82), rgba(229, 219, 197, 0.9));
+  background: linear-gradient(180deg, rgba(220, 225, 217, 0.85), rgba(212, 203, 187, 0.95));
 }
 
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
-  background: rgba(255, 250, 241, 0.95);
+  background: rgba(247, 243, 234, 0.97);
   color: var(--ink);
+  border-radius: var(--radius-xs);
 }
 
 .popup-card {
@@ -420,7 +446,9 @@ textarea {
 }
 
 .popup-card strong {
-  font-family: var(--serif);
+  font-family: var(--sans);
+  text-transform: uppercase;
+  font-size: 0.96rem;
 }
 
 .popup-actions a {
@@ -431,13 +459,16 @@ textarea {
 
 .feature-card .hero-thumb,
 .card-media img,
+.card-media canvas,
+.crop-preview-frame img,
 .media-card img {
   width: 100%;
   display: block;
-  border-radius: 16px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--line);
-  background: #ede2cf;
+  background: #d8cfbf;
   object-fit: cover;
+  filter: saturate(0.78) contrast(0.96);
 }
 
 .feature-card .hero-thumb {
@@ -476,11 +507,13 @@ textarea {
 .pill {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-xs);
   padding: 6px 10px;
   background: var(--accent-soft);
   color: #0a4942;
   font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .pill.reviewed {
@@ -497,6 +530,23 @@ textarea {
   color: #5f4f1f;
 }
 
+.pill.unclassified,
+.pill.classification_unknown,
+.pill.machine_classified {
+  background: rgba(35, 34, 31, 0.08);
+  color: #2e2922;
+}
+
+.pill.machine_classified {
+  background: rgba(37, 95, 87, 0.14);
+  color: #1f4f49;
+}
+
+.pill.classification_unknown {
+  background: rgba(159, 93, 52, 0.14);
+  color: #7a4827;
+}
+
 .detection-card,
 .review-card {
   display: grid;
@@ -504,8 +554,8 @@ textarea {
 }
 
 .detection-card.selected {
-  border-color: rgba(13, 108, 99, 0.45);
-  box-shadow: inset 0 0 0 1px rgba(13, 108, 99, 0.16);
+  border-color: rgba(37, 95, 87, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(37, 95, 87, 0.2);
 }
 
 .compact-card {
@@ -517,6 +567,17 @@ textarea {
   grid-template-columns: 180px minmax(0, 1fr);
 }
 
+.crop-preview-frame {
+  width: 100%;
+  min-height: 132px;
+}
+
+.review-crop-canvas {
+  aspect-ratio: 1.35;
+  object-fit: cover;
+  background: #d8cfbf;
+}
+
 .trip-card h3,
 .detection-card h3,
 .review-card h3,
@@ -524,8 +585,10 @@ textarea {
 .panel h2,
 .panel h3 {
   margin: 0;
-  font-family: var(--serif);
-  letter-spacing: -0.03em;
+  font-family: var(--sans);
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  line-height: 1.15;
 }
 
 .definition-list {
@@ -546,28 +609,26 @@ textarea {
 }
 
 .route-summary {
-  background:
-    linear-gradient(135deg, rgba(13, 108, 99, 0.08), transparent 45%),
-    rgba(255, 255, 255, 0.54);
+  background: rgba(231, 235, 227, 0.56);
 }
 
 .code-block {
   margin: 0;
   overflow-x: auto;
-  border-radius: 16px;
+  border-radius: var(--radius-xs);
   padding: 14px;
-  background: #201b16;
-  color: #fbf5e9;
+  background: #1c1a17;
+  color: #efe7d7;
   font-family: var(--mono);
   font-size: 0.86rem;
 }
 
 .empty-state {
-  border: 1px dashed rgba(136, 114, 82, 0.4);
+  border: 1px dashed rgba(67, 58, 46, 0.46);
   border-radius: var(--radius-sm);
   padding: 22px;
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.36);
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .empty-state.compact {

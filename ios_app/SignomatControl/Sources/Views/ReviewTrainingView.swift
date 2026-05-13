@@ -135,6 +135,14 @@ struct ReviewTrainingView: View {
                     metricTile(title: "Confirmed Signs", value: "\(viewModel.modelMetrics.confirmedSignCount)")
                     metricTile(title: "False Positives", value: "\(viewModel.modelMetrics.falsePositiveCount)")
                 }
+
+                if viewModel.classificationCounts.isEmpty == false {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        ForEach(viewModel.classificationCounts) { item in
+                            metricTile(title: item.classificationState.title, value: "\(item.count)")
+                        }
+                    }
+                }
             }
         }
         .padding()
@@ -361,6 +369,7 @@ private struct DetectionReviewCard: View {
                         .foregroundStyle(.secondary)
                     HStack(spacing: 10) {
                         Label(detection.reviewState.title, systemImage: "tag")
+                        Label(detection.classificationStatus.title, systemImage: "sparkles.rectangle.stack")
                         if let confidence = detection.detectorConfidence {
                             Text(String(format: "Det %.0f%%", confidence * 100))
                         }

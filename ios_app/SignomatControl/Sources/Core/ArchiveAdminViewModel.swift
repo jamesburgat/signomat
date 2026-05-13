@@ -5,6 +5,7 @@ final class ArchiveAdminViewModel: ObservableObject {
     @Published var reviewQueue: [ArchiveDetection] = []
     @Published var trips: [ArchiveTripSummary] = []
     @Published var reviewCounts: [ArchiveReviewCount] = []
+    @Published var classificationCounts: [ArchiveClassificationCount] = []
     @Published var trainingJobs: [ArchiveTrainingJob] = []
     @Published var modelMetrics = ArchiveModelMetrics.empty
     @Published var isLoading = false
@@ -32,6 +33,7 @@ final class ArchiveAdminViewModel: ObservableObject {
             let (queueResponse, summaryResponse, jobsResponse, tripsResponse) = try await (queue, summary, jobs, tripPayload)
             reviewQueue = queueResponse.detections
             reviewCounts = summaryResponse.reviewCounts
+            classificationCounts = summaryResponse.classificationCounts
             modelMetrics = summaryResponse.modelMetrics
             trainingJobs = jobsResponse.jobs
             trips = tripsResponse.trips
@@ -179,6 +181,7 @@ final class ArchiveAdminViewModel: ObservableObject {
     private func refreshSummary(baseURL: URL, adminToken: String? = nil) async throws {
         let summary: ArchiveTrainingSummaryResponse = try await fetch("/admin/training/summary", baseURL: baseURL, adminToken: adminToken)
         reviewCounts = summary.reviewCounts
+        classificationCounts = summary.classificationCounts
         modelMetrics = summary.modelMetrics
     }
 
@@ -254,6 +257,7 @@ struct ArchiveReviewQueueResponse: Decodable {
 
 struct ArchiveTrainingSummaryResponse: Decodable {
     let reviewCounts: [ArchiveReviewCount]
+    let classificationCounts: [ArchiveClassificationCount]
     let modelMetrics: ArchiveModelMetrics
 }
 
@@ -296,6 +300,13 @@ struct ArchiveReviewCount: Decodable, Identifiable {
     let count: Int
 
     var id: String { reviewState.rawValue }
+}
+
+struct ArchiveClassificationCount: Decodable, Identifiable {
+    let classificationState: ArchiveClassificationStatus
+    let count: Int
+
+    var id: String { classificationState.rawValue }
 }
 
 struct ArchiveTripSummary: Decodable, Identifiable {
@@ -355,6 +366,7 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
     let annotatedThumbnailUrl: String?
     let cleanThumbnailUrl: String?
     let signCropThumbnailUrl: String?
+    let classificationStatus: ArchiveClassificationStatus
     var reviewState: ArchiveReviewState
     var notes: String?
 
@@ -424,8 +436,6 @@ struct ArchiveDetection: Codable, Identifiable, Equatable {
 
 enum ArchiveReviewState: String, Codable, Identifiable {
     case unreviewed
-    case classificationUnknown = "classification_unknown"
-    case machineClassified = "machine_classified"
     case reviewed
     case falsePositive = "false_positive"
 
@@ -441,7 +451,7 @@ enum ArchiveReviewState: String, Codable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let rawValue = try container.decode(String.self)
-        self = ArchiveReviewState(rawValue: rawValue) ?? .classificationUnknown
+        self = ArchiveReviewState(rawValue: rawValue) ?? .unreviewed
     }
 
     func encode(to encoder: Encoder) throws {
@@ -453,14 +463,29 @@ enum ArchiveReviewState: String, Codable, Identifiable {
         switch self {
         case .unreviewed:
             return "Unreviewed"
-        case .classificationUnknown:
-            return "Classification Unknown"
-        case .machineClassified:
-            return "Machine Classified"
         case .reviewed:
             return "Confirmed Sign"
         case .falsePositive:
             return "Not a Sign"
+        }
+    }
+}
+
+enum ArchiveClassificationStatus: String, Codable, Identifiable {
+    case unclassified
+    case classificationUnknown = "classification_unknown"
+    case machineClassified = "machine_classified"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .unclassified:
+            return "Needs Classification"
+        case .classificationUnknown:
+            return "Classified Unknown"
+        case .machineClassified:
+            return "Machine Classified"
         }
     }
 }

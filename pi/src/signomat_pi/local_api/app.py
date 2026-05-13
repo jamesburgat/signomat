@@ -115,6 +115,14 @@ def create_app(runtime) -> FastAPI:
     def inference_disable():
         return runtime.disable_inference()
 
+    @app.post("/sync/auto/pause")
+    def sync_auto_pause():
+        return runtime.pause_auto_sync()
+
+    @app.post("/sync/auto/resume")
+    def sync_auto_resume():
+        return runtime.resume_auto_sync()
+
     @app.get("/detections/recent")
     def detections_recent(limit: int = 20):
         return runtime.database.recent_detections(limit)
@@ -404,7 +412,7 @@ def create_app(runtime) -> FastAPI:
 
     @app.post("/sync/force")
     def sync_force():
-        return runtime.sync_service.force_sync()
+        return runtime.run_sync_now()
 
     @app.post("/snapshot")
     def snapshot():
@@ -417,6 +425,14 @@ def create_app(runtime) -> FastAPI:
     @app.get("/classification/status")
     def classification_status():
         return runtime.classification_status()
+
+    @app.post("/classification/auto/pause")
+    def classification_auto_pause():
+        return runtime.pause_auto_classification()
+
+    @app.post("/classification/auto/resume")
+    def classification_auto_resume():
+        return runtime.resume_auto_classification()
 
     @app.post("/classification/run")
     def classification_run(trip_id: str | None = None):
